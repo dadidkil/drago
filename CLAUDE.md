@@ -19,28 +19,27 @@
 запускай в tmux на сервере: `ssh root@2.56.90.240 'tmux new -d -s deploy "cd /opt/drago && make deploy 2>&1 | tee /root/deploy.log"'`,
 затем читай `/root/deploy.log`. Правила ниже действуют так же. Секреты из `/opt/drago/.env` в чат не выводи.
 
-## Известное состояние (на 2026-09-24)
+## Известное состояние (на 2026-09-24, 22:45)
 
-- Сервер: `2.56.90.240` (PTR `academic-special-kestrel.ihchost.rocks`). Предположительно на нём ISPmanager — **проверь**:
-  `ls /usr/local/mgr5/sbin/mgrctl`.
-- DNS домена — в REG.RU (`ns1/ns2.reg.ru`). **`A @` и `A www` указывают на `95.163.244.138`, а НЕ на 2.56.90.240.**
-  Из-за этого Let's Encrypt в ISPmanager падал с 404 на `/.well-known/acme-challenge/`. Записей MX/TXT нет,
-  `mail.dragotop.ru` не существует.
-  - Если ISPmanager на 2.56.90.240 — пользователь должен сменить A-записи в REG.RU на 2.56.90.240 (у тебя нет доступа
-    к REG.RU). Проверка: `dig +short dragotop.ru` = IP этого сервера (`curl -4 -s ifconfig.me`).
-  - Если выяснится, что ISPmanager на 95.163.244.138, — сообщи пользователю: целевой сервер другой.
-- **Обновление вечером 24.09:** владелец сменил A-записи на 2.56.90.240. Разные резолверы ещё отдавали вперемешку
-  старый и новый IP: старая запись закэширована с TTL 6 часов. Перед выпуском Let's Encrypt проверь с сервера
-  авторитетные серверы: `dig @ns1.reg.ru dragotop.ru A +norecurse` и то же для `ns2.reg.ru` и `www` — в ответе
-  флаг `aa` и 2.56.90.240. SSL у сайта в ISPmanager ещё не выпущен: браузер показывает
-  `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`.
-- **На сервере работает ДРУГОЙ сайт — `genreless.ru`** (Next.js «GENRELESS GANG», тот же nginx ISPmanager), он занимает
-  порт **3000**. Не трогай его файлы, конфиги nginx, процессы, контейнеры и порт. «Драго» по умолчанию слушает
-  127.0.0.1:3100 (web) и 127.0.0.1:3102 (vk-bot); `make deploy` сам уходит с занятых чужими процессами портов.
+- Сервер: `2.56.90.240` (PTR `academic-special-kestrel.ihchost.rocks`), панель **ISPmanager** на нём же.
+- **Сайт развёрнут и отвечает:** `https://dragotop.ru/api/health` → `{"status":"ok","app":"drago"}`
+  (лог первого успешного деплоя: `/var/log/drago/deploy-20260924-224500.log`). Первый администратор ещё не создан.
+- Порты «Драго»: web — `127.0.0.1:3100`, vk-bot — `127.0.0.1:3002` (значения в `.env`: `WEB_PORT`, `VK_BOT_PORT`).
+- ISPmanager: сайт `dragotop.ru` (+`www`) принадлежит пользователю панели **`genreless`**; корень
+  `/var/www/genreless/data/www/dragotop.ru` (пустой, контент отдаёт приложение); vhost
+  `/etc/nginx/vhosts/genreless/dragotop.ru.conf`; наш прокси — `/etc/nginx/vhosts-resources/dragotop.ru/drago-proxy.conf`.
+  nginx слушает IP сайта `2.56.90.240`, а не 127.0.0.1. Включена защита от DDoS панели
+  (`limit_req_zone … zone=dragotop.ru rate=25r/s`).
+- SSL: Let's Encrypt `dragotop.ru_le1`, действует до 2026-12-23, продлевает ISPmanager (путь
+  `/.well-known/acme-challenge/` наш прокси не перехватывает).
+- DNS — в REG.RU (`ns1/ns2.reg.ru`): `A @` и `A www` → 2.56.90.240 (исправлено 24.09; раньше указывали на
+  95.163.244.138). Записей MX/TXT для почты ещё нет, `mail.dragotop.ru` не существует.
+- **На сервере работает ДРУГОЙ сайт — `genreless.ru`** (Next.js «GENRELESS GANG», тот же nginx ISPmanager и тот же
+  пользователь панели `genreless`), он занимает порт **3000**. Не трогай его файлы, конфиги nginx, процессы,
+  контейнеры и порт. `make deploy` сам уходит с портов, занятых чужими процессами.
   `docker builder prune -af` (его делает `deploy.sh` при нехватке места) глобальный: чистит и кэш сборки других
-  проектов — это только кэш, но при другом соседе лучше спросить владельца.
-- Первый `make deploy`: образы собраны, postgres/redis запущены; web не смог занять порт 3000 (занят genreless.ru).
-  Диск 30 ГБ — следи за местом (`df -h /`, `docker system df`).
+  проектов — это только кэш, но лучше предупредить владельца.
+- Диск 30 ГБ, RAM 2 ГБ + swap 2 ГБ — следи за местом (`df -h /`, `docker system df`).
 - Рабочая ветка: `claude/amazing-maxwell-xkzunz`. Репозиторий публичный: `https://github.com/dadidkil/drago`.
 
 ## Порядок деплоя (кратко; детали и проверки — в docs/deployment.md)

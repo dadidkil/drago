@@ -73,13 +73,16 @@ else
   exit 1
 fi
 
-# Проверка через локальный nginx (не зависит от DNS)
+# Проверка через nginx этого сервера (не зависит от DNS). ISPmanager обычно слушает конкретный IP
+# сайта (listen 2.56.90.240:443), а не 127.0.0.1 — берём адрес из vhost.
+LISTEN_IP=$(grep -oE "listen[[:space:]]+[0-9.]+:443" "$VHOST" | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" || true)
+LISTEN_IP=${LISTEN_IP:-127.0.0.1}
 sleep 1
-via_nginx() { local body; body=$(curl -sS --max-time 10 --resolve "$DOMAIN:443:127.0.0.1" "$@" "https://$DOMAIN/api/health" 2>/dev/null) || return 1; [[ "$body" == *'"app":"drago"'* ]]; }
+via_nginx() { local body; body=$(curl -sS --max-time 10 --resolve "$DOMAIN:443:$LISTEN_IP" "$@" "https://$DOMAIN/api/health" 2>/dev/null) || return 1; [[ "$body" == *'"app":"drago"'* ]]; }
 if via_nginx; then
-  echo "✅ https://$DOMAIN → «Драго» (проверено через локальный nginx)"
+  echo "✅ https://$DOMAIN → «Драго» (проверено через nginx на $LISTEN_IP)"
 elif via_nginx -k; then
   echo "⚠ Маршрут работает, но сертификат для $DOMAIN недействителен — выпустите Let's Encrypt в ISPmanager (Сайты → $DOMAIN → SSL)."
 else
-  echo "⚠ https://$DOMAIN через локальный nginx не отдаёт «Драго». Проверьте SSL сайта в ISPmanager и: nginx -T | grep -n drago"
+  echo "⚠ https://$DOMAIN через nginx на $LISTEN_IP не отдаёт «Драго». Проверьте SSL сайта в ISPmanager и: nginx -T | grep -n drago"
 fi

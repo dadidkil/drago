@@ -55,19 +55,31 @@
   из среды разработчика авторитетные ответы проверить не удалось — DNS там идёт через кэш). Проверить с сервера:
   `dig @ns1.reg.ru dragotop.ru A +norecurse` (флаг `aa`), затем выпуск Let's Encrypt.
 
+## 2026-09-24, 22:45 — Сайт запущен
+
+- Владелец выпустил в ISPmanager сертификат Let's Encrypt `dragotop.ru_le1` (до 2026-12-23) и включил SSL у сайта.
+- `git pull && make deploy`: `WEB_PORT` сам переведён с 3000 (занят genreless.ru) на **3100**; `VK_BOT_PORT` = 3002
+  (свободен). Прокси nginx обновлён автоматически. Итог: «✅ https://dragotop.ru отвечает через nginx ISPmanager».
+  Лог: `/var/log/drago/deploy-20260924-224500.log`.
+- `make nginx-proxy`: nginx перезагружен; локальная проверка ложно показала «не отдаёт «Драго»» — скрипт стучался на
+  127.0.0.1:443, а nginx ISPmanager слушает только 2.56.90.240. Исправлено: адрес берётся из `listen` vhost.
+- Из `nginx -T`: сайт принадлежит пользователю панели `genreless`, vhost `/etc/nginx/vhosts/genreless/dragotop.ru.conf`,
+  включена защита от DDoS панели (`limit_req` 25 запросов/с на IP).
+
 ## Осталось сделать на сервере (владелец/администратор)
 
 Порядок и команды — в [deployment.md](deployment.md) (сервер с ISPmanager и привязанным доменом):
 
 - [x] **Исправить DNS в REG.RU:** `A @` и `A www` → 2.56.90.240 (сделано 24.09; до 6 часов на обновление кэшей)
-- [ ] Let's Encrypt для dragotop.ru и www в ISPmanager, включить SSL у сайта
-- [ ] `git pull && make deploy` (порты 3100/3102) → `make nginx-proxy`
+- [x] Let's Encrypt для dragotop.ru и www в ISPmanager, включить SSL у сайта
+- [x] `git pull && make deploy` → `make nginx-proxy` — https://dragotop.ru отвечает
 - [ ] (по желанию) запустить Claude Code на сервере — `deployment.md`, приложение В
 - [ ] `00-server-audit.sh` — приложить отчёт в этот журнал (без секретов)
 - [ ] `01-backup-existing.sh` — скачать архив с сервера
 - [ ] `02-bootstrap.sh`
 - [ ] DNS в REG.RU — [dns-records.md](dns-records.md)
-- [ ] `.env` (`gen-secrets.sh` + SMTP, Telegram, VK) → `make deploy`
+- [x] `.env` (`gen-secrets.sh`) → `make deploy`
+- [ ] `.env`: SMTP, Telegram, VK → `make deploy`
 - [ ] `make invite-admin` → вход → 2FA
 - [ ] SSH-ключи → `03-harden-ssh.sh`
 - [ ] Боты: [bots.md](bots.md)
