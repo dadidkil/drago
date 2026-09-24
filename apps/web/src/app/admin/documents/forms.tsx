@@ -48,21 +48,23 @@ export function UploadDocumentForm({ categories }: { categories: { id: string; n
 
 export function CategoryForm({ category }: { category?: { id: string; name: string; description: string | null; minRoleLevel: number; sortOrder: number } }) {
   return (
-    <ActionForm action={saveCategory} resetOnSuccess={!category} refreshOnSuccess className="grid gap-3 sm:grid-cols-[1fr_12rem_6rem_auto] sm:items-end">
+    // Раскладка зависит от ширины карточки (container query), а не экрана: карточка занимает половину страницы.
+    // Узко — «доступ» на всю ширину (иначе обрезается текст), кнопка под ним справа; шире 28rem — в одну строку.
+    <ActionForm action={saveCategory} resetOnSuccess={!category} refreshOnSuccess className="@container grid grid-cols-[minmax(0,1fr)_7rem] items-end gap-3">
       {category && <input type="hidden" name="id" value={category.id} />}
       <Field label="Категория" name="name">
-        <Input name="name" defaultValue={category?.name} maxLength={80} />
-      </Field>
-      <Field label="Доступ" name="minRoleLevel">
-        <AudienceSelect defaultValue={category?.minRoleLevel ?? 20} />
+        <Input name="name" defaultValue={category?.name} maxLength={80} placeholder={category ? undefined : "Новая категория"} />
       </Field>
       <Field label="Порядок" name="sortOrder">
         <Input name="sortOrder" type="number" defaultValue={category?.sortOrder ?? 0} />
       </Field>
-      <SubmitButton variant="secondary" size="sm" className="h-11">
+      <Field label="Доступ" name="minRoleLevel" className="col-span-full @md:col-span-1">
+        <AudienceSelect defaultValue={category?.minRoleLevel ?? 20} />
+      </Field>
+      <SubmitButton variant="secondary" size="sm" className="col-start-2 h-11 w-full @md:col-start-auto">
         {category ? "Сохранить" : "Добавить"}
       </SubmitButton>
-      <FormMessage className="sm:col-span-4" />
+      <FormMessage className="col-span-full" />
     </ActionForm>
   );
 }

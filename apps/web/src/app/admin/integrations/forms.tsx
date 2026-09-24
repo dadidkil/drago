@@ -3,7 +3,7 @@
 import { ActionForm, Checkbox, Field, FormMessage, Input, InlineAction, SubmitButton } from "@/components/ui/form";
 import { saveIntegrations, sendTestEmail } from "./actions";
 
-export function IntegrationsForm({ s }: { s: { telegramBotUsername: string; telegramNotifyApplications: boolean; vkApplicationsEnabled: boolean } }) {
+export function IntegrationsForm({ s }: { s: { telegramBotUsername: string; telegramNotifyApplications: boolean } }) {
   return (
     <ActionForm action={saveIntegrations} className="grid gap-4">
       <FormMessage />
@@ -11,7 +11,6 @@ export function IntegrationsForm({ s }: { s: { telegramBotUsername: string; tele
         <Input name="telegramBotUsername" defaultValue={s.telegramBotUsername} placeholder="drago_top_bot" />
       </Field>
       <Checkbox name="telegramNotifyApplications" defaultChecked={s.telegramNotifyApplications} label="Уведомлять командный состав о новых заявках в Telegram (иначе — только email и кабинет)" />
-      <Checkbox name="vkApplicationsEnabled" defaultChecked={s.vkApplicationsEnabled} label="Принимать заявки через VK-бота" />
       <div>
         <SubmitButton>Сохранить</SubmitButton>
       </div>

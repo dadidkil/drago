@@ -14,4 +14,4 @@ export * from "./mail/provisioner";
 export * from "./env";
 export * from "./telegram-api";
 export * from "./vk-api";
-export * from "./join-dialog";
+export * from "./conversation";

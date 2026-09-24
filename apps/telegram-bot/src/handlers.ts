@@ -11,14 +11,11 @@ import {
   documentsForLevel,
   getConversation,
   getSettings,
-  handleJoinInput,
-  JOIN_STATE,
   markProcessed,
   notifyAudience,
   openTasksForUser,
   rateLimit,
   setConversation,
-  startJoinDialog,
   upcomingEventsForUser,
 } from "@drago/core";
 import {
@@ -33,7 +30,7 @@ import {
   truncate,
 } from "@drago/shared";
 import { resolveLinkedUser, type BotContext } from "./context";
-import { BTN, mainKeyboard, optionsKeyboard, rsvpKeyboard, taskKeyboard } from "./keyboards";
+import { BTN, mainKeyboard, rsvpKeyboard, taskKeyboard } from "./keyboards";
 
 const log = createLogger("telegram-bot");
 const html = { parse_mode: "HTML" as const, link_preview_options: { is_disabled: true } };
@@ -78,7 +75,7 @@ export function registerHandlers(bot: Bot<BotContext>) {
         "/profile — профиль",
         "/contacts — контакты отряда",
         "/cabinet — личный кабинет",
-        "/join — анкета для вступления",
+        "/join — как вступить в отряд",
         "/unlink — отвязать Telegram",
         ...(ctx.linked?.can("applications.read") ? ["", "<b>Командный состав</b>", "/applications — новые заявки"] : []),
         ...(ctx.linked?.can("events.manage") ? ["/participants — участники мероприятий"] : []),
@@ -183,12 +180,6 @@ export function registerHandlers(bot: Bot<BotContext>) {
   bot.on("message:text", async (ctx) => {
     if (!ctx.from) return;
     const conv = await getConversation("TELEGRAM", BigInt(ctx.from.id));
-    if (conv?.state === JOIN_STATE) {
-      const reply = await handleJoinInput("TELEGRAM", BigInt(ctx.from.id), conv.data as Record<string, string>, ctx.message.text, {
-        telegram: ctx.from.username ?? undefined,
-      });
-      return ctx.reply(reply.text, { reply_markup: reply.options ? optionsKeyboard(reply.options) : mainKeyboard(ctx.linked) });
-    }
     if (conv?.state === ANNOUNCE_STATE) return announceStep(ctx, conv.data as Record<string, string | number>);
     await ctx.reply("Не понял 🙂 Выберите раздел в меню или наберите /help.", { reply_markup: mainKeyboard(ctx.linked) });
   });
@@ -300,8 +291,12 @@ async function about(ctx: BotContext) {
 async function join(ctx: BotContext) {
   if (!ctx.from) return;
   if (ctx.linked) return ctx.reply("Ты уже в системе отряда 🙂");
-  const reply = await startJoinDialog("TELEGRAM", BigInt(ctx.from.id));
-  await ctx.reply(`${reply.text}\n\nЕсли удобнее — анкета на сайте: ${appUrl("/join")}`, { reply_markup: optionsKeyboard(reply.options ?? []) });
+  // Заявки принимает только МосРСО в своём приложении ВКонтакте — бот анкету не собирает.
+  const { "site.general": g } = await getSettings(["site.general"]);
+  await ctx.reply(`${escapeHtml(g.recruitmentText)}\n\nЗаявку принимает МосРСО в приложении ВКонтакте.`, {
+    ...html,
+    reply_markup: new InlineKeyboard().url("Подать заявку", g.joinUrl).row().url("Как всё устроено", appUrl("/join")),
+  });
 }
 
 async function applications(ctx: BotContext) {

@@ -24,12 +24,6 @@ export function mainKeyboard(user: LinkedUser | null): Keyboard {
   return kb.resized().persistent();
 }
 
-export function optionsKeyboard(options: { label: string; value: string }[]): Keyboard {
-  const kb = new Keyboard();
-  options.forEach((o) => kb.text(o.label));
-  return kb.resized().oneTime();
-}
-
 export const rsvpKeyboard = (eventId: string) =>
   new InlineKeyboard().text("Иду", `rsvp:${eventId}:GOING`).text("Возможно", `rsvp:${eventId}:MAYBE`).text("Не смогу", `rsvp:${eventId}:NOT_GOING`);
 

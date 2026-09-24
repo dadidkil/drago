@@ -2,17 +2,12 @@ import { db } from "@drago/database";
 import {
   appUrl,
   audit,
-  clearConversation,
   consumeLinkCode,
   createLogger,
-  getConversation,
   getSettings,
-  handleJoinInput,
-  JOIN_STATE,
   publicUpcomingEvents,
   rateLimit,
   sendVkMessage,
-  startJoinDialog,
   vkKeyboard,
   type VkButton,
 } from "@drago/core";
@@ -52,10 +47,6 @@ function menu(): string {
   return vkKeyboard(rows);
 }
 
-function optionsKeyboard(options: { label: string; value: string }[]): string {
-  return vkKeyboard([options.map((o) => ({ label: o.label, payload: { answer: o.value }, color: o.value === "отмена" ? "negative" : "primary" }))], { oneTime: true });
-}
-
 function commandOf(msg: VkMessage): string | null {
   if (msg.payload) {
     try {
@@ -74,18 +65,6 @@ function commandOf(msg: VkMessage): string | null {
   return null;
 }
 
-function answerOf(msg: VkMessage): string {
-  if (msg.payload) {
-    try {
-      const p = JSON.parse(msg.payload) as { answer?: string };
-      if (p.answer) return p.answer;
-    } catch {
-      /* ignore */
-    }
-  }
-  return msg.text;
-}
-
 async function reply(peerId: number, text: string, keyboard?: string) {
   await sendVkMessage(peerId, text, keyboard ?? menu());
 }
@@ -102,14 +81,7 @@ async function handleMessage(msg: VkMessage) {
   if (linkMatch) return linkAccount(msg.peer_id, userId, linkMatch[1]!);
 
   const cmd = commandOf(msg);
-  const conv = await getConversation("VK", userId);
-  if (conv?.state === JOIN_STATE && !cmd) {
-    const r = await handleJoinInput("VK", userId, conv.data as Record<string, string>, answerOf(msg), { vk: `id${msg.from_id}` });
-    return reply(msg.peer_id, r.text, r.options ? optionsKeyboard(r.options) : menu());
-  }
-  if (conv && cmd) await clearConversation("VK", userId);
-
-  const s = await getSettings(["site.general", "site.contacts", "integrations"]);
+  const s = await getSettings(["site.general", "site.contacts"]);
   switch (cmd) {
     case "start":
       return reply(msg.peer_id, `Привет! Это бот ТОП «Драго» 🐉\n${s["site.general"].heroSubtitle}\n\nВыбери, что интересно, в меню ниже.`);
@@ -119,10 +91,12 @@ async function handleMessage(msg: VkMessage) {
       return reply(msg.peer_id, `${s["site.general"].siteName}\n\n${text}\n\nПодробнее: ${appUrl("/about")}`);
     }
     case "join": {
-      const intro = `${s["site.general"].recruitmentText}\n\nАнкета на сайте: ${appUrl("/join")}`;
-      if (!s.integrations.vkApplicationsEnabled) return reply(msg.peer_id, intro);
-      const r = await startJoinDialog("VK", userId);
-      return reply(msg.peer_id, `${intro}\n\nИли заполни анкету прямо здесь.\n\n${r.text}`, optionsKeyboard(r.options ?? []));
+      // Заявки принимает только МосРСО в своём приложении ВКонтакте — бот анкету не собирает.
+      const g = s["site.general"];
+      return reply(
+        msg.peer_id,
+        `${g.recruitmentText}\n\nЗаявку принимает МосРСО в приложении ВКонтакте: ${g.joinUrl}\n\nКак всё устроено: ${appUrl("/join")}`,
+      );
     }
     case "events": {
       const events = await publicUpcomingEvents(5);

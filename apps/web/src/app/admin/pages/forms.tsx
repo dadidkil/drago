@@ -175,7 +175,11 @@ export function FaqForm({ f }: { f?: { id: string; question: string; answer: str
   );
 }
 
-export function SiteGeneralForm({ g }: { g: { siteName: string; heroTitle: string; heroSubtitle: string; tagline: string; recruitmentOpen: boolean; recruitmentText: string } }) {
+export function SiteGeneralForm({
+  g,
+}: {
+  g: { siteName: string; heroTitle: string; heroSubtitle: string; tagline: string; recruitmentOpen: boolean; recruitmentText: string; joinUrl: string };
+}) {
   return (
     <ActionForm action={saveSiteGeneral} className="grid gap-4">
       <FormMessage />
@@ -195,6 +199,9 @@ export function SiteGeneralForm({ g }: { g: { siteName: string; heroTitle: strin
       </Field>
       <Field label="Текст о наборе" name="recruitmentText">
         <Textarea name="recruitmentText" defaultValue={g.recruitmentText} rows={2} />
+      </Field>
+      <Field label="Ссылка «Подать заявку»" name="joinUrl" hint="Заявки принимает МосРСО в приложении ВКонтакте. Сюда ведут кнопки сайта и ботов.">
+        <Input name="joinUrl" type="url" defaultValue={g.joinUrl} />
       </Field>
       <Checkbox name="recruitmentOpen" defaultChecked={g.recruitmentOpen} label="Набор открыт" />
       <div>

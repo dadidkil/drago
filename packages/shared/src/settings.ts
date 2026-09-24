@@ -7,6 +7,9 @@ import { z } from "zod";
 
 const url = z.union([z.url(), z.literal("")]);
 
+/** Официальная подача заявки в трудовые отряды подростков — приложение МосРСО в сообществе ВКонтакте. */
+export const JOIN_URL_DEFAULT = "https://vk.ru/rso_mosrso_top?w=app5619682_-219801650";
+
 export const settingSchemas = {
   "site.general": z.object({
     siteName: z.string().min(1).max(80),
@@ -15,6 +18,8 @@ export const settingSchemas = {
     tagline: z.string().max(200),
     recruitmentOpen: z.boolean(),
     recruitmentText: z.string().max(500),
+    /** Куда ведёт «Подать заявку». Заявки в ТОП принимает МосРСО в своём приложении ВКонтакте, сайт их не собирает. */
+    joinUrl: z.url(),
   }),
   "site.contacts": z.object({
     email: z.union([z.email(), z.literal("")]),
@@ -35,7 +40,6 @@ export const settingSchemas = {
   integrations: z.object({
     telegramBotUsername: z.string().max(64),
     telegramNotifyApplications: z.boolean(),
-    vkApplicationsEnabled: z.boolean(),
   }),
   mail: z.object({
     domain: z.string().min(3).max(100),
@@ -57,6 +61,7 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: SettingValue<K> } = {
     tagline: "Огонь, вода, земля и воздух: вместе эти стихии создают — ТОП «Драго»",
     recruitmentOpen: true,
     recruitmentText: "Принимаем ребят 14–17 лет, которые учатся в школе или колледже Москвы.",
+    joinUrl: JOIN_URL_DEFAULT,
   },
   "site.contacts": {
     email: "",
@@ -77,7 +82,6 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: SettingValue<K> } = {
   integrations: {
     telegramBotUsername: "",
     telegramNotifyApplications: true,
-    vkApplicationsEnabled: true,
   },
   mail: {
     domain: "dragotop.ru",

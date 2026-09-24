@@ -130,7 +130,7 @@ export function Field({
   const { state } = useFormCtx();
   const error = state.fieldErrors?.[name];
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
       <label htmlFor={`f-${name}`} className="text-sm font-medium text-ink">
         {label}
         {required && <span className="text-fire"> *</span>}

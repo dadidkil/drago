@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Trophy } from "lucide-react";
+import { ArrowUpRight, Trophy } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { TelegramIcon, VkIcon } from "@/components/site/brand";
@@ -160,10 +160,10 @@ export default async function HomePage() {
             <p className="font-display text-2xl font-semibold">
               {general.recruitmentOpen ? "Набор открыт" : "Набор скоро откроется"}
             </p>
-            <p className="mt-2 text-muted-dark">Заполни короткую анкету — это займёт пару минут. Мы свяжемся с тобой.</p>
-            <Link href="/join" className={buttonClass("primary", "lg", "mt-6 w-full")}>
-              Оставить заявку <ArrowRight className="size-5" aria-hidden />
-            </Link>
+            <p className="mt-2 text-muted-dark">Заявки в трудовые отряды подростков принимает МосРСО в своём приложении ВКонтакте.</p>
+            <a href={general.joinUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("primary", "lg", "mt-6 w-full")}>
+              Подать заявку <ArrowUpRight className="size-5" aria-hidden />
+            </a>
             {contacts.vkUrl && (
               <a href={contacts.vkUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("outline-light", "lg", "mt-3 w-full")}>
                 <VkIcon className="size-5" /> Написать ВКонтакте

@@ -25,7 +25,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
 
   return (
     <>
-      <PageHeader title="Заявки на вступление" description="Персональные данные кандидатов — только для командного состава. Отклонённые и старые заявки удаляются автоматически по сроку хранения." />
+      <PageHeader title="Заявки на вступление" description="Новые заявки принимает МосРСО в приложении ВКонтакте — сайт и боты анкеты больше не собирают. Здесь — поступившие ранее. Персональные данные кандидатов — только для командного состава; старые заявки удаляются автоматически по сроку хранения." />
       <nav aria-label="Статусы" className="mb-5 flex flex-wrap gap-2">
         <Link href="/admin/applications" className={`rounded-full px-3 py-1.5 text-sm font-medium ${!status ? "bg-ink text-paper" : "bg-white hover:bg-paper-2"}`}>
           Все

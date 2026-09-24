@@ -203,6 +203,7 @@ export const saveSiteGeneral = userAction(
       tagline: zf.str(1, 200),
       recruitmentOpen: zf.bool(),
       recruitmentText: zf.str(1, 500),
+      joinUrl: z.preprocess((v) => (typeof v === "string" ? v.trim() : v), z.url({ message: "Нужна ссылка https://…", protocol: /^https$/ })),
     }),
   },
   async (d, { user, ip }) => {
