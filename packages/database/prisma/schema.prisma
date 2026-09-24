@@ -625,6 +625,7 @@ model NotificationPreference {
 
 enum MailProvider {
   STALWART
+  ISPMANAGER
   MANUAL
 }
 

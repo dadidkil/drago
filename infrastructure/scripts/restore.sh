@@ -4,8 +4,9 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); cd "$ROOT"
 DUMP=${1:?Укажите файл дампа}; FILES=${2:-}
-COMPOSE=(docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml --env-file .env)
 set -a; . ./.env; set +a
+COMPOSE=(docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml --env-file .env)
+[ "${REVERSE_PROXY:-caddy}" = "ispmanager" ] && COMPOSE+=(-f infrastructure/ispmanager/docker-compose.ispmanager.yml)
 echo "⚠ Текущая база ${POSTGRES_DB} будет ЗАМЕНЕНА данными из $DUMP."
 read -r -p "Введите 'восстановить' для продолжения: " ok; [ "$ok" = "восстановить" ] || exit 1
 "${COMPOSE[@]}" stop web worker telegram-bot vk-bot

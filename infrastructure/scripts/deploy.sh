@@ -8,10 +8,12 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$ROOT"
 [ -f .env ] || { echo "Нет .env — выполните infrastructure/scripts/gen-secrets.sh"; exit 1; }
 REF=${1:-}
-COMPOSE=(docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml --env-file .env)
-[ -f infrastructure/mail/docker-compose.mail.yml ] && [ "${WITH_MAIL:-0}" = "1" ] && COMPOSE+=(-f infrastructure/mail/docker-compose.mail.yml)
-
 set -a; . ./.env; set +a
+COMPOSE=(docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml --env-file .env)
+# REVERSE_PROXY=ispmanager — 80/443 обслуживает nginx ISPmanager, Caddy не запускается
+[ "${REVERSE_PROXY:-caddy}" = "ispmanager" ] && COMPOSE+=(-f infrastructure/ispmanager/docker-compose.ispmanager.yml)
+[ "${WITH_MAIL:-0}" = "1" ] && COMPOSE+=(-f infrastructure/mail/docker-compose.mail.yml)
+echo "▶ Режим: ${REVERSE_PROXY:-caddy}$( [ "${WITH_MAIL:-0}" = "1" ] && echo ' + self-hosted почта')"
 mkdir -p "${DATA_DIR:-/srv/drago}/uploads" "${DATA_DIR:-/srv/drago}/backups"
 
 if [ -n "$REF" ] || [ -d .git ]; then
@@ -44,5 +46,11 @@ for i in $(seq 1 30); do
 done
 "${COMPOSE[@]}" ps
 [ "$status" = "healthy" ] || { echo "❌ web не стал healthy — смотрите: make logs s=web"; exit 1; }
-curl -fsS "https://${DOMAIN}/api/health" >/dev/null && echo "✅ https://${DOMAIN} отвечает" || echo "⚠ https://${DOMAIN} пока не отвечает (DNS/сертификат?)"
+if [ "${REVERSE_PROXY:-caddy}" = "ispmanager" ]; then
+  curl -fsS "http://127.0.0.1:${WEB_PORT:-3000}/api/health" >/dev/null && echo "✅ приложение отвечает на 127.0.0.1:${WEB_PORT:-3000}"
+  curl -fsS "https://${DOMAIN}/api/health" >/dev/null && echo "✅ https://${DOMAIN} отвечает через nginx ISPmanager" \
+    || echo "⚠ https://${DOMAIN} не отвечает: выполните sudo bash infrastructure/ispmanager/install-nginx-proxy.sh ${DOMAIN} и проверьте SSL сайта в ISPmanager"
+else
+  curl -fsS "https://${DOMAIN}/api/health" >/dev/null && echo "✅ https://${DOMAIN} отвечает" || echo "⚠ https://${DOMAIN} пока не отвечает (DNS/сертификат?)"
+fi
 docker image prune -f >/dev/null

@@ -42,6 +42,22 @@ for f in /root/.ssh/authorized_keys /home/*/.ssh/authorized_keys; do [ -f "$f" ]
 section "Docker"
 if have docker; then docker version --format '{{.Server.Version}}' 2>/dev/null; docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'; docker volume ls; docker network ls; else echo "Docker не установлен"; fi
 
+section "Панель управления"
+if [ -x /usr/local/mgr5/sbin/mgrctl ]; then
+  echo "ISPmanager: УСТАНОВЛЕН (/usr/local/mgr5)"
+  /usr/local/mgr5/sbin/mgrctl -m ispmgr license.info 2>/dev/null | grep -Ei 'name|version|expire' | head -5 || true
+  echo "— Сайты (webdomain):"; /usr/local/mgr5/sbin/mgrctl -m ispmgr webdomain 2>/dev/null | head -20 || true
+  echo "— Почтовые домены (emaildomain):"; /usr/local/mgr5/sbin/mgrctl -m ispmgr emaildomain 2>/dev/null | head -20 || true
+  echo "— Доменные имена DNS (domain):"; /usr/local/mgr5/sbin/mgrctl -m ispmgr domain 2>/dev/null | head -20 || true
+  echo "— Каталоги nginx vhosts:"; ls -la /etc/nginx/vhosts /etc/nginx/vhosts-resources 2>/dev/null | head -30
+else
+  echo "ISPmanager не найден"
+fi
+for p in /usr/local/fastpanel2 /usr/local/vesta /usr/local/hestia /usr/local/cpanel /opt/brainycp; do [ -e "$p" ] && echo "Обнаружена другая панель: $p"; done
+
+section "DNS домена"
+if have dig; then for d in ${DRAGO_DOMAIN:-dragotop.ru}; do echo "NS: $(dig +short NS "$d" | tr '\n' ' ')"; echo "A:  $(dig +short A "$d" | tr '\n' ' ')"; echo "MX: $(dig +short MX "$d" | tr '\n' ' ')"; done; fi
+
 section "Веб-серверы"
 for s in nginx apache2 httpd caddy lighttpd; do systemctl is-active "$s" >/dev/null 2>&1 && echo "$s: АКТИВЕН"; done
 ls -la /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null

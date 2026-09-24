@@ -1,18 +1,21 @@
 import { createLogger } from "../logger";
+import { IspmanagerProvisioner } from "./ispmanager";
 
 const log = createLogger("mail-provisioner");
 
 /**
  * Управление корпоративными ящиками @dragotop.ru.
- * Реализации: Stalwart Mail Server (self-hosted, REST API) и manual (ящики создаются у провайдера вручную).
+ * Реализации: Stalwart Mail Server (REST API), ISPmanager (API панели) и manual (ящики создаются у провайдера вручную).
  * Пароли никогда не логируются и не возвращаются администратору.
  */
 export interface MailProvisioner {
-  readonly kind: "STALWART" | "MANUAL";
+  readonly kind: "STALWART" | "ISPMANAGER" | "MANUAL";
   /** true — провайдер реально создаёт ящики (иначе система только ведёт учёт). */
   readonly automated: boolean;
   createMailbox(input: { address: string; displayName: string; password: string; quotaMb?: number | null }): Promise<void>;
   setPassword(address: string, password: string): Promise<void>;
+  /** Снять блокировку ящика (если провайдер различает блокировку и пароль). */
+  enableMailbox?(address: string): Promise<void>;
   disableMailbox(address: string): Promise<void>;
   deleteMailbox(address: string): Promise<void>;
   healthcheck(): Promise<{ ok: boolean; message: string }>;
@@ -124,6 +127,13 @@ export function getMailProvisioner(): MailProvisioner {
     const pass = process.env.STALWART_ADMIN_PASSWORD;
     if (!url || !user || !pass) throw new Error("MAIL_PROVIDER=stalwart, но STALWART_URL/STALWART_ADMIN_USER/STALWART_ADMIN_PASSWORD не заданы");
     return new StalwartProvisioner(url, user, pass);
+  }
+  if (kind === "ispmanager") {
+    const url = process.env.ISPMANAGER_URL;
+    const user = process.env.ISPMANAGER_USER;
+    const pass = process.env.ISPMANAGER_PASSWORD;
+    if (!url || !user || !pass) throw new Error("MAIL_PROVIDER=ispmanager, но ISPMANAGER_URL/ISPMANAGER_USER/ISPMANAGER_PASSWORD не заданы");
+    return new IspmanagerProvisioner(url, user, pass, process.env.ISPMANAGER_TLS_VERIFY !== "false");
   }
   return new ManualProvisioner();
 }

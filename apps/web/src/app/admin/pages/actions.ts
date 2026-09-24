@@ -11,6 +11,8 @@ import { uniqueSlug } from "@/lib/admin";
 import { deleteFileAsset, storeUpload } from "@/lib/uploads";
 
 const P = "pages.manage" as const;
+/** Публичные страницы с фиксированными адресами + статьи внутренней базы знаний kb-*. */
+const PAGE_SLUG_RE = /^(about|history|traditions|join|privacy|rso|kb-[a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const refresh = () => revalidatePath("/", "layout");
 
 // ── Страницы ──
@@ -18,7 +20,7 @@ export const savePage = userAction(
   {
     permission: P,
     schema: z.object({
-      slug: z.enum(["about", "history", "traditions", "join", "privacy"]),
+      slug: z.string().regex(PAGE_SLUG_RE, "Недопустимый адрес страницы"),
       title: zf.str(2, 150),
       content: zf.str(1, 50000, "Заполните текст"),
       seoTitle: zf.optStr(70),
@@ -32,6 +34,26 @@ export const savePage = userAction(
     await audit({ actorId: user.id, action: "page.update", entity: "Page", entityId: d.slug, ipAddress: ip, metadata: { published: d.isPublished } });
     refresh();
     return { ok: true, message: "Страница сохранена" };
+  },
+);
+
+export const createKnowledgeArticle = userAction(
+  { permission: P, schema: z.object({ title: zf.str(3, 150, "Укажите название"), slug: zf.slug() }) },
+  async (d, { user, ip }) => {
+    const base = `kb-${d.slug ?? slugify(d.title, 50)}`;
+    const slug = await uniqueSlug(base, async (s) => Boolean(await db.page.findUnique({ where: { slug: s } })));
+    await db.page.create({ data: { slug, title: d.title, content: "_Статья в работе._", isPublished: false } });
+    await audit({ actorId: user.id, action: "page.create", entity: "Page", entityId: slug, ipAddress: ip });
+    redirect(`/admin/pages/page/${slug}`);
+  },
+);
+
+export const deleteKnowledgeArticle = userAction(
+  { permission: P, schema: z.object({ slug: z.string().regex(/^kb-[a-z0-9-]+$/) }) },
+  async (d, { user, ip }) => {
+    await db.page.delete({ where: { slug: d.slug } });
+    await audit({ actorId: user.id, action: "page.delete", entity: "Page", entityId: d.slug, ipAddress: ip });
+    redirect("/admin/pages#knowledge");
   },
 );
 

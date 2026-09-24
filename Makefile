@@ -1,20 +1,25 @@
 # ТОП «Драго» — частые команды эксплуатации (запускать из корня репозитория на сервере)
+SUDO := $(shell [ "$$(id -u)" = "0" ] || echo sudo)
 COMPOSE = docker compose --project-directory infrastructure -f infrastructure/docker-compose.yml --env-file .env
+REVERSE_PROXY ?= $(shell grep -s '^REVERSE_PROXY=' .env | cut -d= -f2)
+ifeq ($(REVERSE_PROXY),ispmanager)
+COMPOSE += -f infrastructure/ispmanager/docker-compose.ispmanager.yml
+endif
 ifeq ($(WITH_MAIL),1)
 COMPOSE += -f infrastructure/mail/docker-compose.mail.yml
 endif
 
-.PHONY: help audit backup-existing bootstrap secrets deploy up down ps logs migrate backup restore invite-admin reset-link shell-db preflight-mail
+.PHONY: nginx-proxy help audit backup-existing bootstrap secrets deploy up down ps logs migrate backup restore invite-admin reset-link shell-db preflight-mail
 
 help:            ## Список команд
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 audit:           ## Read-only аудит сервера
-	sudo bash infrastructure/scripts/00-server-audit.sh
+	$(SUDO) bash infrastructure/scripts/00-server-audit.sh
 backup-existing: ## Бэкап всего, что было на сервере до установки
-	sudo bash infrastructure/scripts/01-backup-existing.sh
+	$(SUDO) bash infrastructure/scripts/01-backup-existing.sh
 bootstrap:       ## Docker, UFW, fail2ban, swap, каталоги
-	sudo bash infrastructure/scripts/02-bootstrap.sh
+	$(SUDO) bash infrastructure/scripts/02-bootstrap.sh
 secrets:         ## Сгенерировать .env со стойкими секретами
 	bash infrastructure/scripts/gen-secrets.sh
 deploy:          ## Сборка, миграции, запуск, проверка здоровья
@@ -39,5 +44,7 @@ reset-link:      ## Ссылка сброса пароля: make reset-link emai
 	$(COMPOSE) --profile tools run --rm migrate sh -c "pnpm exec tsx src/cli.ts reset-link --email $(email)"
 shell-db:        ## psql в контейнере БД
 	$(COMPOSE) exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+nginx-proxy:     ## ISPmanager: подключить сайт к nginx панели
+	$(SUDO) bash infrastructure/ispmanager/install-nginx-proxy.sh $$(grep ^DOMAIN= .env | cut -d= -f2)
 preflight-mail:  ## Проверка готовности к self-hosted почте
 	bash infrastructure/scripts/mail-preflight.sh $$(grep ^DOMAIN= .env | cut -d= -f2)

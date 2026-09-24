@@ -4,6 +4,7 @@ import { db } from "@drago/database";
 import { formatDate } from "@drago/shared";
 import { Badge, Card, PageHeader } from "@/components/ui/misc";
 import { requireAdmin } from "@/lib/auth/current-user";
+import { NewKnowledgeArticleForm } from "./forms";
 
 export const metadata: Metadata = { title: "Контент сайта" };
 
@@ -36,10 +37,10 @@ export default async function PagesHub() {
           </Link>
         ))}
       </div>
-      <h2 className="mt-8 mb-3 text-lg font-semibold">Страницы</h2>
+      <h2 className="mt-8 mb-3 text-lg font-semibold">Страницы сайта</h2>
       <Card className="p-0 sm:p-0">
         <ul className="divide-y divide-line">
-          {pages.map((p) => (
+          {pages.filter((p) => !p.slug.startsWith("kb-")).map((p) => (
             <li key={p.slug} className="flex items-center justify-between gap-3 px-5 py-3">
               <div>
                 <Link href={`/admin/pages/page/${p.slug}`} className="font-semibold hover:text-fire">
@@ -51,6 +52,28 @@ export default async function PagesHub() {
             </li>
           ))}
         </ul>
+      </Card>
+      <h2 id="knowledge" className="mt-8 mb-1 text-lg font-semibold">
+        База знаний (только в кабинете)
+      </h2>
+      <p className="mb-3 text-sm text-muted">Внутренние материалы для бойцов — на сайте не публикуются.</p>
+      <Card className="p-0 sm:p-0">
+        <ul className="divide-y divide-line">
+          {pages.filter((p) => p.slug.startsWith("kb-")).map((p) => (
+            <li key={p.slug} className="flex items-center justify-between gap-3 px-5 py-3">
+              <div>
+                <Link href={`/admin/pages/page/${p.slug}`} className="font-semibold hover:text-fire">
+                  {p.title}
+                </Link>
+                <p className="text-xs text-muted">/cabinet/knowledge/{p.slug.slice(3)} · обновлено {formatDate(p.updatedAt)}</p>
+              </div>
+              <Badge tone={p.isPublished ? "success" : "warning"}>{p.isPublished ? "видна бойцам" : "черновик"}</Badge>
+            </li>
+          ))}
+        </ul>
+        <div className="border-t border-line p-5">
+          <NewKnowledgeArticleForm />
+        </div>
       </Card>
     </>
   );

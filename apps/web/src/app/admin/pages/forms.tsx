@@ -2,6 +2,7 @@
 
 import { ActionForm, Checkbox, Field, FormMessage, Input, SubmitButton, Textarea } from "@/components/ui/form";
 import {
+  createKnowledgeArticle,
   saveAchievement,
   saveFaq,
   savePage,
@@ -238,6 +239,23 @@ export function SiteContactsForm({
       <div>
         <SubmitButton>Сохранить контакты</SubmitButton>
       </div>
+    </ActionForm>
+  );
+}
+
+export function NewKnowledgeArticleForm() {
+  return (
+    <ActionForm action={createKnowledgeArticle} className="grid gap-3 sm:grid-cols-[1fr_14rem_auto] sm:items-end">
+      <Field label="Новая статья" name="title">
+        <Input name="title" placeholder="Например: Традиции отряда" maxLength={150} />
+      </Field>
+      <Field label="Адрес (необязательно)" name="slug">
+        <Input name="slug" placeholder="traditions" />
+      </Field>
+      <SubmitButton variant="secondary" size="sm" className="h-11">
+        Создать
+      </SubmitButton>
+      <FormMessage className="sm:col-span-3" />
     </ActionForm>
   );
 }

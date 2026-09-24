@@ -6,6 +6,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 WITH_MAIL=0; [ "${1:-}" = "--with-mail" ] && WITH_MAIL=1
+ISPMANAGER=0; [ -x /usr/local/mgr5/sbin/mgrctl ] && ISPMANAGER=1
 DATA_DIR=${DATA_DIR:-/srv/drago}
 log() { echo -e "\033[1;32m▶\033[0m $*"; }
 
@@ -16,7 +17,12 @@ case "$ID" in ubuntu|debian) ;; *) echo "Поддерживаются Ubuntu/Deb
 log "Пакеты"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y ca-certificates curl gnupg ufw fail2ban unattended-upgrades git dnsutils jq make
+if [ $ISPMANAGER = 1 ]; then
+  # На сервере с ISPmanager файрволом управляет панель — UFW не ставим, чтобы не было конфликтов правил.
+  apt-get install -y ca-certificates curl gnupg fail2ban unattended-upgrades git dnsutils jq make
+else
+  apt-get install -y ca-certificates curl gnupg ufw fail2ban unattended-upgrades git dnsutils jq make
+fi
 
 if ! command -v docker >/dev/null; then
   log "Docker Engine + compose plugin (официальный репозиторий)"
@@ -41,8 +47,11 @@ JSON
 fi
 systemctl enable --now docker
 
-log "Firewall (UFW): SSH, HTTP, HTTPS$( [ $WITH_MAIL = 1 ] && echo ', почтовые порты')"
 SSH_PORT=$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}'); SSH_PORT=${SSH_PORT:-22}
+if [ $ISPMANAGER = 1 ]; then
+  log "Обнаружен ISPmanager: UFW пропущен. Правила файрвола задайте в панели (Сеть → Брандмауэр), см. docs/deployment.md"
+else
+log "Firewall (UFW): SSH, HTTP, HTTPS$( [ $WITH_MAIL = 1 ] && echo ', почтовые порты')"
 ufw allow "$SSH_PORT/tcp" comment 'SSH'
 ufw allow 80/tcp comment 'HTTP (ACME + redirect)'
 ufw allow 443/tcp comment 'HTTPS'
@@ -54,6 +63,7 @@ ufw default deny incoming
 ufw default allow outgoing
 ufw --force enable
 # Docker публикует порты в обход UFW — поэтому в compose наружу опубликованы ТОЛЬКО 80/443 (Caddy).
+fi
 
 log "fail2ban (sshd + recidive)"
 install -m 0644 "$(dirname "$0")/../fail2ban/jail.local" /etc/fail2ban/jail.d/drago.local

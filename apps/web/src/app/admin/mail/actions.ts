@@ -82,6 +82,8 @@ export const resetMailboxPassword = userAction({ permission: "mail.manage", sche
   if (!provisioner.automated) throw new UserError("Ручной режим: сбросьте пароль в панели почтового провайдера (функция «пригласить/сбросить» у провайдера).");
   const password = generatePassword();
   try {
+    // Отключённый ящик сначала разблокируем (ISPmanager различает блокировку и смену пароля).
+    if (account.status === "DISABLED" && provisioner.enableMailbox) await provisioner.enableMailbox(account.address);
     await provisioner.setPassword(account.address, password);
   } catch (err) {
     await db.emailAccount.update({ where: { id: account.id }, data: { status: "ERROR", lastError: (err as Error).message.slice(0, 500) } });

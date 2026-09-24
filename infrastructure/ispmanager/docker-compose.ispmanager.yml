@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Режим «сервер с ISPmanager»: порты 80/443 занимает nginx панели, он же выпускает
+# сертификаты Let's Encrypt. Caddy не запускается; web и vk-bot слушают ТОЛЬКО 127.0.0.1,
+# nginx ISPmanager проксирует на них (см. nginx-drago-proxy.conf).
+# Подключается автоматически, если в .env: REVERSE_PROXY=ispmanager
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  caddy:
+    profiles: ["caddy"]   # не запускается в режиме ISPmanager
+
+  web:
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    extra_hosts:
+      # доступ к API ISPmanager (почтовые ящики) и почтовому серверу хоста
+      - "host.docker.internal:host-gateway"
+
+  vk-bot:
+    ports:
+      - "127.0.0.1:${VK_BOT_PORT:-3002}:3002"
+
+  worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

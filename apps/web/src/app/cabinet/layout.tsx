@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import {
+  BookOpen,
   Bell,
   CalendarDays,
   CalendarRange,
@@ -39,6 +40,7 @@ export default async function CabinetLayout({ children }: { children: ReactNode 
         { href: "/cabinet/calendar", label: "Календарь", icon: <CalendarRange /> },
         { href: "/cabinet/documents", label: "Документы", icon: <FileText /> },
         { href: "/cabinet/team", label: "Отряд", icon: <Users /> },
+        { href: "/cabinet/knowledge", label: "База знаний", icon: <BookOpen /> },
       ],
     },
     {

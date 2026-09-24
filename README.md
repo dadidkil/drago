@@ -23,7 +23,7 @@
 ## Документация
 
 - [Архитектура](docs/architecture.md)
-- [Развёртывание на сервере](docs/deployment.md) — пошагово
+- [**Полный гайд по деплою**](docs/deployment.md) — пошагово для VPS с ISPmanager (и без панели)
 - [DNS-записи для REG.RU](docs/dns-records.md)
 - [Почта @dragotop.ru: сравнение вариантов и настройка](docs/mail.md)
 - [Боты Telegram и VK](docs/bots.md)
@@ -64,12 +64,17 @@ pnpm build
 Кратко (подробно — в [deployment.md](docs/deployment.md)):
 
 ```bash
-sudo bash infrastructure/scripts/00-server-audit.sh     # read-only аудит
-sudo bash infrastructure/scripts/01-backup-existing.sh  # бэкап того, что уже есть
-sudo bash infrastructure/scripts/02-bootstrap.sh        # Docker, UFW, fail2ban
-bash infrastructure/scripts/gen-secrets.sh              # .env со стойкими секретами
-make deploy                                             # сборка → миграции → запуск
+git clone https://github.com/dadidkil/drago.git /opt/drago && cd /opt/drago
+make audit                  # read-only аудит сервера (видит ISPmanager)
+make backup-existing        # бэкап того, что уже есть
+make bootstrap              # Docker, fail2ban (+ UFW, если нет панели)
+make secrets                # .env со стойкими секретами → заполнить SMTP/боты
+make deploy                 # сборка → миграции → запуск
+make nginx-proxy            # (ISPmanager) подключить сайт к nginx панели
 make invite-admin email=you@example.com
 ```
+
+Два режима приёма трафика (`REVERSE_PROXY` в `.env`): `ispmanager` — nginx панели проксирует на
+`127.0.0.1:3000`; `caddy` — чистый сервер, Caddy сам получает сертификаты.
 
 Секреты хранятся только в `.env` на сервере (права 600); `.env` не коммитится.

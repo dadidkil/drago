@@ -18,10 +18,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AboutPage() {
-  const [about, history, traditions, settings] = await Promise.all([
+  const [about, history, traditions, rso, settings] = await Promise.all([
     getPublishedPage("about"),
     getPublishedPage("history"),
     getPublishedPage("traditions"),
+    getPublishedPage("rso"),
     getSiteSettings(),
   ]);
   const general = settings["site.general"];
@@ -46,6 +47,14 @@ export default async function AboutPage() {
                   {history.title}
                 </h2>
                 <Markdown source={history.content} />
+              </section>
+            )}
+            {rso && (
+              <section id="rso" aria-labelledby="rso-title">
+                <h2 id="rso-title" className="mb-6 text-3xl font-semibold">
+                  {rso.title}
+                </h2>
+                <Markdown source={rso.content} />
               </section>
             )}
             {traditions && (

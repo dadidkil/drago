@@ -42,7 +42,10 @@ export default async function AdminMail({ searchParams }: { searchParams: Promis
         <Card>
           <h2 className="font-semibold">Провайдер</h2>
           <p className="mt-2 text-sm">
-            Режим: <span className="font-semibold">{provisioner.kind === "STALWART" ? "Stalwart (автоматически)" : "Ручной"}</span>
+            Режим:{" "}
+            <span className="font-semibold">
+              {provisioner.kind === "STALWART" ? "Stalwart (автоматически)" : provisioner.kind === "ISPMANAGER" ? "ISPmanager (автоматически)" : "Ручной"}
+            </span>
           </p>
           <p className={`mt-1 text-sm ${health.ok ? "text-success" : "text-danger"}`}>{health.message}</p>
           <p className="mt-3 text-xs text-muted">
@@ -72,7 +75,7 @@ export default async function AdminMail({ searchParams }: { searchParams: Promis
                 {provisioner.automated && (
                   <InlineAction action={resetMailboxPassword} fields={{ id: a.id }} label="Новый временный пароль" confirm="Выпустить новый временный пароль? Старый перестанет работать." />
                 )}
-                {a.status === "ACTIVE" ? (
+                {a.status === "ACTIVE" || a.status === "ERROR" ? (
                   <InlineAction action={setMailboxStatus} fields={{ id: a.id, status: "DISABLED" }} label="Отключить" confirm="Отключить ящик?" />
                 ) : (
                   !provisioner.automated && <InlineAction action={setMailboxStatus} fields={{ id: a.id, status: "ACTIVE" }} label="Отметить активным" />
