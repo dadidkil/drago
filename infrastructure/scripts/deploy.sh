@@ -61,6 +61,39 @@ if [ "$MEM_MB" -lt 1500 ] && [ "${FORCE:-0}" != "1" ]; then
   exit 1
 fi
 
+if [ "${REVERSE_PROXY:-caddy}" = "ispmanager" ]; then
+  # web и vk-bot публикуются на 127.0.0.1. На сервере могут работать другие сайты (на этом —
+  # genreless.ru на порту 3000): порт, занятый чужим процессом, не трогаем, а берём свободный
+  # и записываем его в .env. Порт, который держит наш же контейнер, занятым не считается.
+  echo "▶ Проверка портов"
+  if command -v ss >/dev/null; then
+    listener() { ss -Hltnp "sport = :$1" 2>/dev/null | head -1; }
+    ours() { "${COMPOSE[@]}" port "$1" "$2" 2>/dev/null | grep -q ":$3\$"; }
+    set_env() { if grep -q "^$1=" .env; then sed -i "s/^$1=.*/$1=$2/" .env; else echo "$1=$2" >> .env; fi; }
+    ensure_port() { # переменная сервис порт-в-контейнере порт-по-умолчанию порт-которого-избегать
+      local var=$1 svc=$2 cport=$3 def=$4 avoid=${5:-} port busy new
+      port=${!var:-$def}
+      [[ "$port" =~ ^[0-9]+$ ]] || { echo "❌ $var=$port — не число"; exit 1; }
+      busy=$(listener "$port")
+      if [ -n "$busy" ] && ! ours "$svc" "$cport" "$port"; then
+        new=$def
+        while [ -n "$(listener "$new")" ] || [ "$new" = "$avoid" ] || [ "$new" = "$port" ]; do new=$((new + 1)); done
+        echo "  ⚠ порт $port занят другим приложением ($(awk '{print $6}' <<<"$busy")) — его не трогаем"
+        echo "  $var: $port → $new (записано в .env)"
+        set_env "$var" "$new"
+        port=$new
+      else
+        echo "  $var=$port — свободен или занят «Драго»"
+      fi
+      printf -v "$var" '%s' "$port"; export "${var?}"
+    }
+    ensure_port WEB_PORT web 3000 3100
+    ensure_port VK_BOT_PORT vk-bot 3002 3102 "$WEB_PORT"
+  else
+    echo "  ⚠ нет утилиты ss — проверка портов пропущена"
+  fi
+fi
+
 echo "▶ Сборка образов"
 "${COMPOSE[@]}" --profile tools build --pull
 
@@ -85,12 +118,31 @@ for i in $(seq 1 30); do
 done
 "${COMPOSE[@]}" ps
 [ "$status" = "healthy" ] || { echo "❌ web не стал healthy — смотрите: make logs s=web"; exit 1; }
+# Проверяем содержимое ответа, а не только код: на том же порту/домене может отвечать чужое приложение.
+is_drago() { local body; body=$(curl -fsS --max-time 10 "$@" 2>/dev/null) || return 1; [[ "$body" == *'"app":"drago"'* ]]; }
 if [ "${REVERSE_PROXY:-caddy}" = "ispmanager" ]; then
-  curl -fsS "http://127.0.0.1:${WEB_PORT:-3000}/api/health" >/dev/null && echo "✅ приложение отвечает на 127.0.0.1:${WEB_PORT:-3000}"
-  curl -fsS "https://${DOMAIN}/api/health" >/dev/null && echo "✅ https://${DOMAIN} отвечает через nginx ISPmanager" \
-    || echo "⚠ https://${DOMAIN} не отвечает: выполните sudo bash infrastructure/ispmanager/install-nginx-proxy.sh ${DOMAIN} и проверьте SSL сайта в ISPmanager"
+  if is_drago "http://127.0.0.1:${WEB_PORT:-3100}/api/health"; then
+    echo "✅ «Драго» отвечает на 127.0.0.1:${WEB_PORT:-3100}"
+  else
+    echo "❌ на 127.0.0.1:${WEB_PORT:-3100} отвечает не «Драго» — смотрите: make ps; ss -ltnp | grep ${WEB_PORT:-3100}"; exit 1
+  fi
+  # Прокси nginx должен смотреть на тот же порт: иначе домен уйдёт на чужое приложение.
+  PROXY_CONF=$(grep -ls "__drago_web__" /etc/nginx/vhosts-resources/*/drago-proxy.conf 2>/dev/null | head -1 || true)
+  if [ -n "$PROXY_CONF" ]; then
+    PROXY_PORT=$(sed -n '/__drago_web__/,/}/s/.*proxy_pass http:\/\/127\.0\.0\.1:\([0-9]*\).*/\1/p' "$PROXY_CONF" | head -1)
+    if [ "$PROXY_PORT" != "${WEB_PORT:-3100}" ]; then
+      echo "⚠ nginx проксирует на порт ${PROXY_PORT:-?}, а «Драго» слушает ${WEB_PORT:-3100} — обновляю прокси"
+      if [ "$(id -u)" -eq 0 ]; then bash infrastructure/ispmanager/install-nginx-proxy.sh "$DOMAIN" || true
+      else echo "   выполните: make nginx-proxy"; fi
+    fi
+  fi
+  if is_drago "https://${DOMAIN}/api/health"; then
+    echo "✅ https://${DOMAIN} отвечает через nginx ISPmanager"
+  else
+    echo "⚠ https://${DOMAIN} пока не отдаёт «Драго». Нужны: DNS на этот сервер, SSL-сертификат сайта в ISPmanager, затем make nginx-proxy"
+  fi
 else
-  curl -fsS "https://${DOMAIN}/api/health" >/dev/null && echo "✅ https://${DOMAIN} отвечает" || echo "⚠ https://${DOMAIN} пока не отвечает (DNS/сертификат?)"
+  is_drago "https://${DOMAIN}/api/health" && echo "✅ https://${DOMAIN} отвечает" || echo "⚠ https://${DOMAIN} пока не отвечает (DNS/сертификат?)"
 fi
 docker image prune -f >/dev/null
 # Держим кэш сборки в разумных пределах (на небольшом диске он быстро разрастается до десятков ГБ).

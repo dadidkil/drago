@@ -10,14 +10,14 @@ services:
 
   web:
     ports:
-      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${WEB_PORT:-3100}:3000"
     extra_hosts:
       # доступ к API ISPmanager (почтовые ящики) и почтовому серверу хоста
       - "host.docker.internal:host-gateway"
 
   vk-bot:
     ports:
-      - "127.0.0.1:${VK_BOT_PORT:-3002}:3002"
+      - "127.0.0.1:${VK_BOT_PORT:-3102}:3002"
 
   worker:
     extra_hosts:

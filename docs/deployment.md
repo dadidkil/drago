@@ -43,8 +43,8 @@
 ```
 Интернет ──443──▶ nginx ISPmanager (SSL Let's Encrypt от панели)
                     │  /etc/nginx/vhosts-resources/dragotop.ru/drago-proxy.conf
-                    ├── /vk/callback ─────────▶ 127.0.0.1:3002  vk-bot   ┐
-                    └── всё остальное ────────▶ 127.0.0.1:3000  web      │ Docker
+                    ├── /vk/callback ─────────▶ 127.0.0.1:3102  vk-bot   ┐
+                    └── всё остальное ────────▶ 127.0.0.1:3100  web      │ Docker
                                                      worker, telegram-bot │ (docker compose)
                                                      PostgreSQL, Redis, backup ┘  ← без портов наружу
 ISPmanager: почта (Exim/Dovecot/Roundcube), DNS (если NS у хостера), брандмауэр, панель :1500
@@ -121,7 +121,7 @@ bash infrastructure/scripts/00-server-audit.sh
 |---|---|---|
 | Ресурсы | RAM ≥ 2 ГБ, диск ≥ 15 ГБ свободно | увеличить тариф или почистить диск |
 | Панель управления | `ISPmanager: УСТАНОВЛЕН`, сайт `dragotop.ru` есть в списке сайтов (webdomain) | создать сайт (шаг 5.1) |
-| Открытые порты | 80/443 слушает **nginx**, 1500 — ISPmanager (ihttpd), 3000/3002 свободны | если 3000/3002 заняты — задать другие `WEB_PORT`/`VK_BOT_PORT` в `.env` |
+| Открытые порты | 80/443 слушает **nginx**, 1500 — ISPmanager (ihttpd) | порты «Драго» (`WEB_PORT`/`VK_BOT_PORT`, по умолчанию 3100/3102): если заняты другим сайтом, `make deploy` сам выберет свободные и запишет в `.env` |
 | Docker | установлен или нет | будет установлен на шаге 6 |
 | DNS домена | `A dragotop.ru` = 2.56.90.240 | шаг 4 |
 | Почта | `Исходящий порт 25 → ОТКРЫТ` | если закрыт — запросить у хостера или выбрать внешнюю почту (шаг 12) |
@@ -194,11 +194,35 @@ dig +short A www.dragotop.ru
 /.well-known/acme-challenge/…: 404». На 24.09.2026 обе записи указывали на `95.163.244.138`, а не на 2.56.90.240 —
 исправьте их в REG.RU (шаг 4) и подождите 15–60 минут (TTL записей был 6 часов).
 
+Let's Encrypt спрашивает **авторитетные** DNS-серверы домена, причём любой из них. Поэтому перед выпуском убедитесь,
+что новый IP отдают **оба**:
+
+```bash
+for ns in ns1.reg.ru ns2.reg.ru; do for n in dragotop.ru www.dragotop.ru; do
+  echo "$ns $n: $(dig @$ns $n A +norecurse +short)"; done; done
+# все четыре строки — 2.56.90.240
+dig @ns1.reg.ru dragotop.ru A +norecurse | grep flags   # должен быть флаг aa (ответ авторитетный, не из кэша)
+```
+
+Старая запись была с TTL 6 часов, поэтому ещё несколько часов после смены резолверы (включая резолверы
+Let's Encrypt и провайдера вашего браузера) могут отдавать старый IP. Вечером 24.09.2026 разные резолверы отвечали
+вперемешку старым и новым адресом. Если выпуск упал с чужим IP в сообщении — подождите и повторите.
+
 **SSL-сертификаты → Создать → Let's Encrypt** → домены `dragotop.ru` и `www.dragotop.ru`. Затем в настройках сайта
 включите **SSL** и выберите этот сертификат. Панель сама продлевает сертификат.
 
 Проверка: `https://dragotop.ru` открывается без предупреждения браузера. Пока там заглушка ISPmanager или пустой
 каталог — это нормально.
+
+Если браузер пишет **«Этот сайт не может обеспечить безопасное соединение… неподдерживаемый протокол»**
+(`ERR_SSL_VERSION_OR_CIPHER_MISMATCH`) — у сайта ещё нет сертификата или SSL у сайта не включён, либо браузер ещё
+ходит на старый IP из своего кэша DNS. Это не ошибка приложения: выпустите сертификат, включите SSL у сайта и
+проверьте с сервера, что отдаёт nginx:
+
+```bash
+openssl s_client -connect 127.0.0.1:443 -servername dragotop.ru </dev/null 2>/dev/null | openssl x509 -noout -subject -issuer -dates
+# ожидается subject CN = dragotop.ru, issuer — Let's Encrypt
+```
 
 ### 5.3. Брандмауэр
 
@@ -210,7 +234,7 @@ dig +short A www.dragotop.ru
 | 80/tcp, 443/tcp | разрешить | сайт |
 | 1500/tcp | разрешить **только с ваших IP** | панель ISPmanager |
 | 25, 465, 587, 993/tcp | разрешить | только если почта на этом сервере (шаг 12) |
-| 3000, 3002, 5432, 6379 | **не открывать** | приложение слушает только 127.0.0.1, база и Redis вообще без портов |
+| 3100, 3102 (`WEB_PORT`, `VK_BOT_PORT`), 5432, 6379 | **не открывать** | приложение слушает только 127.0.0.1, база и Redis вообще без портов |
 | всё остальное | запретить | |
 
 Если почтовые ящики создаются из нашей админки через API панели (шаг 12, `MAIL_PROVIDER=ispmanager`), разрешите
@@ -277,7 +301,7 @@ nano .env
 | `REVERSE_PROXY` | `ispmanager` (уже стоит) | да |
 | `DOMAIN` / `APP_URL` | `dragotop.ru` / `https://dragotop.ru` (уже стоят) | да |
 | `ACME_EMAIL` | любой ваш email (в режиме ISPmanager не используется, но должен быть задан) | да |
-| `WEB_PORT`, `VK_BOT_PORT` | `3000`, `3002` — поменять, только если порты заняты | да |
+| `WEB_PORT`, `VK_BOT_PORT` | `3100`, `3102`. Если порт занят другим приложением, `make deploy` сам заменит его на свободный | да |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | ящик для писем сайта (шаг 12.4) | нет — без них приглашения выдаются ссылкой в админке |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` | шаг 13 | нет |
 | `VK_GROUP_ID`, `VK_ACCESS_TOKEN`, `VK_CONFIRMATION_CODE` | шаг 14 | нет |
@@ -317,7 +341,7 @@ make deploy
 ```
 ▶ Режим: ispmanager
 ...
-✅ приложение отвечает на 127.0.0.1:3000
+✅ «Драго» отвечает на 127.0.0.1:3100
 ⚠ https://dragotop.ru не отвечает: выполните sudo bash infrastructure/ispmanager/install-nginx-proxy.sh dragotop.ru ...
 ```
 
@@ -327,7 +351,7 @@ make deploy
 
 ```bash
 make ps                                   # все сервисы Up, web/worker/vk-bot — (healthy)
-curl -s http://127.0.0.1:3000/api/health  # {"status":"ok"}
+curl -s http://127.0.0.1:3100/api/health  # {"status":"ok","app":"drago"} — порт из WEB_PORT в .env
 ```
 
 ---
@@ -342,15 +366,20 @@ make nginx-proxy
 
 Скрипт:
 
-1. находит конфиг сайта в `/etc/nginx/vhosts/…/dragotop.ru.conf`;
-2. находит в нём `include /etc/nginx/vhosts-resources/<сайт>/*.conf` и кладёт туда `drago-proxy.conf`;
-3. проверяет `nginx -t` и перезагружает nginx; при ошибке — откатывает.
+1. берёт порты `WEB_PORT`/`VK_BOT_PORT` из `.env` и проверяет, что на `127.0.0.1:WEB_PORT` отвечает именно «Драго»
+   (а не другой сайт сервера) — иначе отказывается;
+2. находит конфиг сайта в `/etc/nginx/vhosts/…/dragotop.ru.conf`;
+3. находит в нём `include /etc/nginx/vhosts-resources/<сайт>/*.conf` и кладёт туда `drago-proxy.conf` с этими портами;
+4. проверяет `nginx -t` и перезагружает nginx; при ошибке — откатывает;
+5. проверяет `https://dragotop.ru/api/health` через локальный nginx (не зависит от DNS).
+
+Конфиги других сайтов сервера скрипт не меняет. Если `make deploy` позже сменит порт, он сам обновит прокси.
 
 Проверка:
 
 ```bash
 curl -sI https://dragotop.ru | head -5            # HTTP/2 200 и заголовки content-security-policy, strict-transport-security
-curl -s https://dragotop.ru/api/health            # {"status":"ok"}
+curl -s https://dragotop.ru/api/health            # {"status":"ok","app":"drago"}
 curl -sI http://dragotop.ru | grep -i location    # 301 → https://
 ```
 
@@ -360,8 +389,8 @@ curl -sI http://dragotop.ru | grep -i location    # 301 → https://
 
 `drago-proxy.conf` работает на уровне `server {}`:
 
-- все запросы по HTTPS внутренне перенаправляются в служебные `location` и проксируются в `127.0.0.1:3000`
-  (`/vk/callback` — в `127.0.0.1:3002`) с исходным `$request_uri`;
+- все запросы по HTTPS внутренне перенаправляются в служебные `location` и проксируются в `127.0.0.1:WEB_PORT`
+  (`/vk/callback` — в `127.0.0.1:VK_BOT_PORT`; порты скрипт берёт из `.env`) с исходным `$request_uri`;
 - `location /` панели не трогается — поэтому regex-правила ISPmanager для `*.js`, `*.css` и картинок не перехватывают
   файлы приложения;
 - `/.well-known/acme-challenge/` (продление сертификата), `/roundcube`, `/webmail`, `/phpmyadmin` остаются за
@@ -600,8 +629,8 @@ rsync -a root@2.56.90.240:/srv/drago/backups/ ~/drago-backups/
 | 2 | Редирект | http://dragotop.ru, https://www.dragotop.ru | → https://dragotop.ru |
 | 3 | Заголовки безопасности | `curl -sI https://dragotop.ru` | `content-security-policy`, `strict-transport-security`, `x-frame-options: DENY` |
 | 4 | Здоровье | `curl https://dragotop.ru/api/health` | `{"status":"ok"}` |
-| 5 | Порты | `ss -tlnp` (на сервере) | 3000/3002 только на 127.0.0.1; 5432/6379 не видны |
-| 6 | Снаружи порты закрыты | с вашего ПК: `nc -zv 2.56.90.240 3000` и `5432` | отказ или таймаут |
+| 5 | Порты | `ss -tlnp` (на сервере) | 3100/3102 (`WEB_PORT`/`VK_BOT_PORT`) только на 127.0.0.1; 5432/6379 не видны |
+| 6 | Снаружи порты закрыты | с вашего ПК: `nc -zv 2.56.90.240 3100` и `5432` | отказ или таймаут |
 | 7 | Вход и 2FA | вход администратора | запрос кода 2FA |
 | 8 | Заявка | https://dragotop.ru/join → отправить | появилась в `/admin/applications`, пришло уведомление |
 | 9 | Загрузка фото | `/admin/gallery` → альбом → фото | фото на сайте в `/gallery` |
@@ -648,7 +677,9 @@ make restore f=/srv/drago/backups/daily/db-ГГГГММДД-ЧЧММ.dump u=/srv
 
 | Симптом | Причина | Что делать |
 |---|---|---|
-| **502 Bad Gateway** | контейнер web не запущен или порт другой | `make ps`, `make logs s=web`; `curl http://127.0.0.1:3000/api/health`; сверить `WEB_PORT` в `.env` и в `drago-proxy.conf` |
+| `curl 127.0.0.1:3000/api/health` отдаёт чужую страницу 404 (другой сайт сервера); `make deploy` падал на «address already in use» | порт занят другим приложением (на 2.56.90.240 — genreless.ru на 3000) | ничего не трогать у чужого сайта. `git pull && make deploy` — скрипт сам выберет свободный порт (по умолчанию 3100/3102), запишет в `.env` и обновит прокси |
+| Браузер: «неподдерживаемый протокол», `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` | у сайта в ISPmanager нет сертификата / SSL не включён, либо DNS ещё указывает на старый IP | шаг 5.2: проверить оба NS REG.RU, выпустить Let's Encrypt, включить SSL у сайта; затем `make nginx-proxy` |
+| **502 Bad Gateway** | контейнер web не запущен или порт другой | `make ps`, `make logs s=web`; `curl http://127.0.0.1:3100/api/health` (порт из `WEB_PORT`); сверить `WEB_PORT` в `.env` и порт в `drago-proxy.conf`, затем `make nginx-proxy` |
 | Открывается заглушка ISPmanager / «Index of» | прокси не подключён или SSL у сайта выключен | `make nginx-proxy`; включить SSL сайта (5.2); `nginx -T \| grep drago` |
 | `nginx -t` падает после установки | конфликт с кастомными правилами сайта | скрипт откатит сам; проверьте, нет ли своих `rewrite` в конфиге сайта; ручной вариант — шаг 10 |
 | Let's Encrypt: «Invalid response from http://dragotop.ru/.well-known/acme-challenge/…: 404» (в сообщении чужой IP) | A-запись домена указывает на другой сервер | IP в сообщении — куда ходил Let's Encrypt. Сверить с `curl -4 -s ifconfig.me`; исправить `A @` и `A www` в REG.RU; подождать до TTL; повторить |

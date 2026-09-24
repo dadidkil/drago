@@ -70,9 +70,21 @@ if have dig; then
       echo "  Исправьте A-запись там, где управляется DNS (см. NS выше; для ns*.reg.ru — в личном кабинете REG.RU)."
     fi
   done
+  # Авторитетные ответы (без кэша): Let's Encrypt может спросить любой из NS
+  for ns in $(dig +short NS "$DOMAIN_CHECK"); do
+    for host in "$DOMAIN_CHECK" "www.$DOMAIN_CHECK"; do
+      a=$(dig @"$ns" +norecurse +short A "$host" 2>/dev/null | grep -E '^[0-9.]+$' | tr '\n' ' ' | sed 's/ $//')
+      mark="✘"; [ -n "$SERVER_IP" ] && [ "$a" = "$SERVER_IP" ] && mark="✔"
+      echo "  авторитетно ${ns%.} → $host: ${a:-нет ответа} $mark"
+    done
+  done
 else
   echo "dig не установлен (apt-get install -y dnsutils)"
 fi
+
+section "Порты приложений (3000–3199, только чтение)"
+# На сервере могут работать другие сайты: занятые ими порты «Драго» не использует (см. WEB_PORT в .env)
+if have ss; then ss -Hltnp 2>/dev/null | awk '{split($4,a,":"); p=a[length(a)]; if (p>=3000 && p<3200) print "  " $4, $6}' || true; fi
 
 section "Веб-серверы"
 for s in nginx apache2 httpd caddy lighttpd; do systemctl is-active "$s" >/dev/null 2>&1 && echo "$s: АКТИВЕН"; done
