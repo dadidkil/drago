@@ -39,9 +39,9 @@ backup:          ## Бэкап БД и файлов прямо сейчас
 restore:         ## Восстановление: make restore f=/srv/drago/backups/daily/db-....dump
 	bash infrastructure/scripts/restore.sh $(f) $(u)
 invite-admin:    ## Приглашение суперадмина: make invite-admin email=you@dragotop.ru
-	$(COMPOSE) --profile tools run --rm migrate sh -c "pnpm exec tsx src/cli.ts invite-superadmin --email $(email)"
+	$(COMPOSE) --profile tools run --rm migrate node_modules/.bin/tsx src/cli.ts invite-superadmin --email $(email)
 reset-link:      ## Ссылка сброса пароля: make reset-link email=user@example.com
-	$(COMPOSE) --profile tools run --rm migrate sh -c "pnpm exec tsx src/cli.ts reset-link --email $(email)"
+	$(COMPOSE) --profile tools run --rm migrate node_modules/.bin/tsx src/cli.ts reset-link --email $(email)
 shell-db:        ## psql в контейнере БД
 	$(COMPOSE) exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 nginx-proxy:     ## ISPmanager: подключить сайт к nginx панели

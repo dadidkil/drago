@@ -38,10 +38,23 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
       pnpm --filter "@drago/$app" deploy --prod --legacy "/out/$app" && cp -r "apps/$app/dist" "/out/$app/dist"; \
     done
 
-# ── Миграции и сид (одноразовый контейнер) ───────────────────────────────────
-FROM build AS migrate
-WORKDIR /repo/packages/database
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm exec tsx src/seed.ts"]
+# ── Миграции и сид: отдельная лёгкая сборка (только Prisma CLI, tsx и пакет БД) ──
+FROM deps AS migrate-build
+COPY tsconfig.base.json ./
+COPY packages ./packages
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm db:generate \
+ && pnpm --filter @drago/database deploy --legacy /out/database \
+ && rm -rf /out/database/src/generated \
+ && cp -r packages/database/src/generated /out/database/src/generated
+
+FROM ${NODE_IMAGE} AS migrate
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=migrate-build --chown=node:node /out/database ./
+USER node
+# Команды CLI: node_modules/.bin/tsx src/cli.ts invite-superadmin --email …
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node_modules/.bin/tsx src/seed.ts"]
 
 # ── Общий runtime ────────────────────────────────────────────────────────────
 # Без apt-get: init-процесс даёт Docker (`init: true` в compose), healthcheck — через fetch в Node.

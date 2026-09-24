@@ -294,8 +294,12 @@ nano .env
 
 ```bash
 cd /opt/drago
+tmux new -s deploy        # деплой переживёт обрыв SSH; вернуться: tmux attach -t deploy
 make deploy
 ```
+
+Весь вывод дублируется в лог `/var/log/drago/deploy-<время>.log`. Перед сборкой скрипт проверяет, что свободно
+≥ 6 ГБ диска и ≥ 1,5 ГБ памяти (RAM + swap): иначе сборка может заполнить диск или вызвать нехватку памяти.
 
 Что происходит:
 
@@ -654,7 +658,8 @@ make restore f=/srv/drago/backups/daily/db-ГГГГММДД-ЧЧММ.dump u=/srv
 | VK: «Не удалось подтвердить адрес» | не совпадает строка подтверждения, секрет или ID группы | сверить `VK_CONFIRMATION_CODE`, `VK_CALLBACK_SECRET`, `VK_GROUP_ID`; `make logs s=vk-bot` («bad secret» / «wrong group_id») |
 | Telegram-бот молчит | нет токена или токен неверный | `make logs s=telegram-bot`; `/admin/integrations` |
 | Сборка падает на скачивании образов | Docker Hub или зеркало недоступно | в `.env` задать другое зеркало: `NODE_IMAGE=public.ecr.aws/docker/library/node:22-bookworm-slim`, аналогично `POSTGRES_IMAGE`, `REDIS_IMAGE` |
-| Кончилось место | логи или бэкапы | `df -h`; `docker system prune -f`; проверить `/srv/drago/backups` |
+| Кончилось место | логи, бэкапы, кэш сборки | `df -h`; `docker system df`; `docker builder prune -f`; `docker image prune -f`; проверить `/srv/drago/backups` |
+| SSH оборвался во время `make deploy` («closed by remote host») | нехватка памяти/диска при сборке или перезагрузка сервера | переподключиться; `uptime`, `free -h`, `df -h /`, `dmesg -T \| grep -i -E "oom\|killed" \| tail`; последний лог — `ls -t /var/log/drago/ \| head -1`; запускать деплой в `tmux`; при нехватке памяти — swap (`02-bootstrap.sh`) |
 | Потерян доступ администратора | забыт пароль или 2FA | `make reset-link email=...` (ссылка сброса); сброс 2FA — другой администратор в `/admin/users` |
 
 ---

@@ -446,7 +446,7 @@ async function main() {
   await seedProjects();
   await seedFaq();
   await seedDocumentCategories();
-  console.log("\nГотово. Создайте первого администратора: pnpm admin:invite --email you@example.com");
+  console.log("\nГотово. Первый администратор: make invite-admin email=you@example.com (локально: pnpm admin:invite --email …)");
 }
 
 main()
