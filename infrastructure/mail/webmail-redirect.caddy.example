@@ -1,0 +1,6 @@
+# Вариант B (внешний провайдер, например Яндекс 360 / VK WorkSpace):
+# скопируйте в infrastructure/caddy/sites/webmail.caddy и укажите URL веб-почты провайдера.
+# DNS: A webmail → IP сервера.
+webmail.{$DOMAIN} {
+	redir https://mail.yandex.ru/?pdd_domain={$DOMAIN} temporary
+}

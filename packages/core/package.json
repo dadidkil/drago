@@ -1,0 +1,29 @@
+{
+  "name": "@drago/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./crypto": "./src/crypto.ts",
+    "./rate-limit": "./src/rate-limit.ts",
+    "./logger": "./src/logger.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@drago/database": "workspace:*",
+    "@drago/shared": "workspace:*",
+    "ioredis": "^5.11.0",
+    "nodemailer": "^7.0.13",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/nodemailer": "^7.0.0",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.0"
+  }
+}

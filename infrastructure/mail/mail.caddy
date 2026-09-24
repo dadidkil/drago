@@ -1,0 +1,25 @@
+# Подключается только вместе с docker-compose.mail.yml
+mail.{$DOMAIN} {
+	import common
+	# Автонастройка почтовых клиентов и MTA-STS/JMAP — из Stalwart
+	@wellknown path /.well-known/* /autoconfig/* /autodiscover/* /mail/config-v1.1.xml
+	handle @wellknown {
+		reverse_proxy stalwart:8080
+	}
+	# Админка Stalwart наружу НЕ публикуется: доступ через SSH-туннель (см. docs/mail.md)
+	handle {
+		redir https://webmail.{$DOMAIN}{uri} temporary
+	}
+}
+
+webmail.{$DOMAIN} {
+	import common
+	request_body {
+		max_size 30MB
+	}
+	reverse_proxy roundcube:80
+}
+
+autoconfig.{$DOMAIN}, autodiscover.{$DOMAIN} {
+	reverse_proxy stalwart:8080
+}

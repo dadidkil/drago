@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Caddy: HTTPS (Let's Encrypt автоматически), HTTP/3, reverse proxy.
+# Caddy перезаписывает X-Forwarded-For адресом клиента (входящие XFF от клиентов не доверяются).
+# ─────────────────────────────────────────────────────────────────────────────
+{
+	email {$ACME_EMAIL}
+	servers {
+		protocols h1 h2 h3
+		timeouts {
+			read_body 60s
+			read_header 10s
+			idle 2m
+		}
+	}
+}
+
+(common) {
+	encode zstd gzip
+	header {
+		-Server
+		-X-Powered-By
+		X-Content-Type-Options nosniff
+	}
+	log {
+		output file /data/logs/access.log {
+			roll_size 20MiB
+			roll_keep 7
+		}
+		format json
+	}
+}
+
+{$DOMAIN} {
+	import common
+
+	# Загрузка документов до 25 МБ + накладные расходы
+	request_body {
+		max_size 30MB
+	}
+
+	# VK Callback API → vk-bot
+	handle /vk/callback {
+		reverse_proxy vk-bot:3002
+	}
+
+	# Служебные файлы Next.js — долгий кэш
+	@static path /_next/static/* /fonts/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	handle {
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-Host {host}
+			health_uri /api/health
+			health_interval 30s
+		}
+	}
+
+	handle_errors {
+		respond "Сервис временно недоступен. Попробуйте через минуту." {err.status_code}
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+# Дополнительные сайты (почта, веб-почта) подключаются файлами *.caddy
+import /etc/caddy/sites/*.caddy

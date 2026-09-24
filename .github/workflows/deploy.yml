@@ -1,0 +1,40 @@
+# Ручной деплой на сервер по SSH. Секреты репозитория (Settings → Secrets and variables → Actions):
+#   DEPLOY_HOST        — IP или домен сервера (2.56.90.240)
+#   DEPLOY_USER        — пользователь (например, drago)
+#   DEPLOY_SSH_KEY     — приватный ключ (ed25519), отдельный deploy-ключ только для этого сервера
+#   DEPLOY_KNOWN_HOSTS — вывод `ssh-keyscan -t ed25519 <host>` (защита от MITM)
+#   DEPLOY_PATH        — каталог репозитория на сервере (например, /opt/drago)
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (ветка/тег/коммит)"
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    steps:
+      - name: Configure SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+      - name: Deploy
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "cd '${{ secrets.DEPLOY_PATH }}' && bash infrastructure/scripts/deploy.sh '$REF'"

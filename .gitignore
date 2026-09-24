@@ -1,0 +1,26 @@
+node_modules/
+.pnpm-store/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# Сгенерированный Prisma Client
+packages/database/src/generated/
+
+# Секреты — никогда не коммитим
+.env
+.env.*
+!.env.example
+infrastructure/.env
+*.pem
+*.key
+secrets/
+
+# Данные рантайма
+uploads/
+backups/
+*.log
+.DS_Store

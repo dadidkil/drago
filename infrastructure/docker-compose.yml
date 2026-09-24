@@ -1,0 +1,160 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ТОП «Драго» — production-стек.
+# Запуск:   docker compose --env-file ../.env up -d --build   (из каталога infrastructure)
+# Или:      make up   (из корня репозитория)
+# Наружу открыты ТОЛЬКО 80/443 (Caddy). PostgreSQL и Redis — во внутренней сети без выхода в интернет.
+# ─────────────────────────────────────────────────────────────────────────────
+name: drago
+
+x-app: &app
+  env_file: ${ENV_FILE:-../.env}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [edge, db]
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+  logging: &logging
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+x-build: &build
+  context: ..
+  dockerfile: infrastructure/docker/Dockerfile
+  args:
+    NODE_IMAGE: ${NODE_IMAGE:-mirror.gcr.io/library/node:22-bookworm-slim}
+
+services:
+  caddy:
+    image: ${CADDY_IMAGE:-mirror.gcr.io/library/caddy:2}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN не задан}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL не задан}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/sites:/etc/caddy/sites:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+    depends_on:
+      web: { condition: service_healthy }
+    logging: *logging
+
+  web:
+    <<: *app
+    build: { <<: *build, target: web }
+    image: drago/web:latest
+    environment:
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - ${DATA_DIR:-/srv/drago}/uploads:/data/uploads
+    tmpfs:
+      - /tmp:size=64m
+      - /app/apps/web/.next/cache:size=512m,uid=1000,gid=1000
+    mem_limit: 768m
+
+  worker:
+    <<: *app
+    build: { <<: *build, target: worker }
+    image: drago/worker:latest
+    tmpfs: ["/tmp:size=16m,uid=1000,gid=1000"]
+    mem_limit: 256m
+
+  telegram-bot:
+    <<: *app
+    build: { <<: *build, target: telegram-bot }
+    image: drago/telegram-bot:latest
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: 256m
+
+  vk-bot:
+    <<: *app
+    build: { <<: *build, target: vk-bot }
+    image: drago/vk-bot:latest
+    tmpfs: ["/tmp:size=16m"]
+    mem_limit: 256m
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-mirror.gcr.io/library/postgres:17-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-drago}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD не задан}
+      POSTGRES_DB: ${POSTGRES_DB:-drago}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [db]
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  redis:
+    image: ${REDIS_IMAGE:-mirror.gcr.io/library/redis:7-alpine}
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD не задан}", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", "", "--appendonly", "no"]
+    networks: [db]
+    read_only: true
+    tmpfs: ["/data:size=16m"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    logging: *logging
+
+  # Ежедневный бэкап PostgreSQL + загруженных файлов с ротацией (14 дневных, 8 недельных, 6 месячных).
+  backup:
+    image: ${POSTGRES_IMAGE:-mirror.gcr.io/library/postgres:17-alpine}
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/backup/backup.sh", "loop"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-drago}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-drago}
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-0}
+      TZ: UTC
+    volumes:
+      - ./backup/backup.sh:/backup/backup.sh:ro
+      - ${DATA_DIR:-/srv/drago}/backups:/backups
+      - ${DATA_DIR:-/srv/drago}/uploads:/uploads:ro
+    networks: [db]
+    depends_on:
+      postgres: { condition: service_healthy }
+    logging: *logging
+
+  # Одноразовый: миграции + сид. `docker compose run --rm migrate`
+  migrate:
+    build: { <<: *build, target: migrate }
+    image: drago/migrate:latest
+    env_file: ${ENV_FILE:-../.env}
+    networks: [db]
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: [tools]
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge:
+  # Внутренняя сеть БД: без выхода в интернет и без публикации портов.
+  db:
+    internal: true

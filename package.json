@@ -1,0 +1,27 @@
+{
+  "name": "drago",
+  "private": true,
+  "description": "Цифровая инфраструктура ТОП «Драго»: сайт, кабинет, админ-панель, боты",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @drago/web dev",
+    "dev:tg": "pnpm --filter @drago/telegram-bot dev",
+    "dev:vk": "pnpm --filter @drago/vk-bot dev",
+    "dev:worker": "pnpm --filter @drago/worker dev",
+    "build": "pnpm db:generate && pnpm -r --filter './apps/*' build",
+    "typecheck": "pnpm db:generate && pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @drago/database generate",
+    "db:migrate": "pnpm --filter @drago/database migrate:dev",
+    "db:deploy": "pnpm --filter @drago/database migrate:deploy",
+    "db:seed": "pnpm --filter @drago/database seed",
+    "db:studio": "pnpm --filter @drago/database studio",
+    "admin:invite": "pnpm --filter @drago/database cli invite-superadmin"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

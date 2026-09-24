@@ -1,0 +1,18 @@
+# ТОП «Драго»: защита SSH от перебора
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+backend = systemd
+
+[sshd]
+enabled = true
+port = ssh
+mode = aggressive
+
+# Повторные нарушители — бан на неделю
+[recidive]
+enabled = true
+bantime = 1w
+findtime = 1d
+maxretry = 3

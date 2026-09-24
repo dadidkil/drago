@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ОПЦИОНАЛЬНО: self-hosted почта (вариант A из docs/mail.md) — Stalwart + Roundcube.
+# Включать ТОЛЬКО после mail-preflight.sh (порт 25 открыт, PTR настроен) и DNS-записей.
+#   WITH_MAIL=1 bash infrastructure/scripts/deploy.sh
+# и в .env: MAIL_PROVIDER=stalwart, STALWART_ADMIN_PASSWORD=<сгенерировать>
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  stalwart:
+    image: ${STALWART_IMAGE:-stalwartlabs/stalwart:v0.13}
+    restart: unless-stopped
+    ports:
+      - "25:25"     # SMTP (приём почты из интернета)
+      - "465:465"   # SMTP submission (TLS)
+      - "587:587"   # SMTP submission (STARTTLS)
+      - "993:993"   # IMAPS
+    volumes:
+      - stalwart_data:/opt/stalwart
+      # TLS-сертификат mail.<домен> выпускает Caddy; Stalwart читает его (см. docs/mail.md)
+      - caddy_data:/caddy:ro
+    # При первом запуске Stalwart печатает сгенерированный пароль администратора в лог:
+    #   docker compose logs stalwart | grep -i password
+    # Его (или созданный API-ключ) укажите в .env: STALWART_ADMIN_USER / STALWART_ADMIN_PASSWORD.
+    networks: [edge]
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  roundcube:
+    image: ${ROUNDCUBE_IMAGE:-roundcube/roundcubemail:1.6.x-apache}
+    restart: unless-stopped
+    environment:
+      ROUNDCUBEMAIL_DEFAULT_HOST: ssl://mail.${DOMAIN}
+      ROUNDCUBEMAIL_DEFAULT_PORT: "993"
+      ROUNDCUBEMAIL_SMTP_SERVER: ssl://mail.${DOMAIN}
+      ROUNDCUBEMAIL_SMTP_PORT: "465"
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE: 25M
+      ROUNDCUBEMAIL_PLUGINS: archive,zipdownload,managesieve
+    volumes:
+      - roundcube_db:/var/roundcube/db
+    networks: [edge]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  caddy:
+    volumes:
+      - ./mail/mail.caddy:/etc/caddy/sites/mail.caddy:ro
+
+volumes:
+  stalwart_data:
+  roundcube_db:

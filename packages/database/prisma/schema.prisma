@@ -1,0 +1,703 @@
+// Единая схема данных ТОП «Драго».
+// Сайт, личный кабинет, админ-панель, Telegram-бот, VK-бот и воркер
+// работают поверх этой базы.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Пользователи и доступ ─────────────────────────────
+
+enum UserStatus {
+  INVITED // создан администратором, пароль ещё не задан
+  ACTIVE
+  SUSPENDED // временно заблокирован
+  ARCHIVED // выбыл из отряда, вход запрещён
+}
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique // всегда в нижнем регистре
+  emailVerifiedAt   DateTime?
+  passwordHash      String?
+  status            UserStatus @default(INVITED)
+  roleId            String
+  role              Role       @relation(fields: [roleId], references: [id])
+
+  // TOTP 2FA: секрет хранится зашифрованным (AES-256-GCM, APP_ENCRYPTION_KEY)
+  totpSecretEnc     String?
+  totpEnabledAt     DateTime?
+  // Номер последнего принятого 30-секундного шага TOTP — защита от повторного использования кода
+  totpLastStep      Int?
+  recoveryCodeHashes String[]  @default([])
+
+  failedLoginCount  Int        @default(0)
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  profile           Profile?
+  sessions          Session[]
+  authTokens        AuthToken[]
+  linkCodes         LinkCode[]
+  telegramAccount   TelegramAccount?
+  vkAccount         VkAccount?
+  emailAccount      EmailAccount?
+  notifications     Notification[]
+  notificationPrefs NotificationPreference[]
+
+  newsAuthored          News[]             @relation("NewsAuthor")
+  announcementsAuthored Announcement[]     @relation("AnnouncementAuthor")
+  eventsCreated         Event[]            @relation("EventCreator")
+  eventsOrganized       Event[]            @relation("EventOrganizer")
+  eventParticipations   EventParticipant[]
+  tasksCreated          Task[]             @relation("TaskCreator")
+  taskAssignments       TaskAssignee[]
+  taskComments          TaskComment[]
+  documentsUploaded     Document[]         @relation("DocumentUploader")
+  filesUploaded         FileAsset[]        @relation("FileUploader")
+  applicationsHandled   JoinApplication[]  @relation("ApplicationHandler")
+  applicationSource     JoinApplication[]  @relation("ApplicationUser")
+  emailAccountsCreated  EmailAccount[]     @relation("EmailAccountCreator")
+  auditLogs             AuditLog[]
+  teamMember            TeamMember?
+
+  @@index([roleId])
+  @@index([status])
+}
+
+model Profile {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastName     String
+  firstName    String
+  middleName   String?
+  avatarFileId String?  @unique
+  avatar       FileAsset? @relation("ProfileAvatar", fields: [avatarFileId], references: [id], onDelete: SetNull)
+  squadStatus  String? // «кандидат», «боец», «ветеран» — свободный статус
+  position     String? // должность в отряде: «командир», «комиссар», «мастер»…
+  joinedYear   Int?
+  // Минимум контактов. Виден только самому бойцу и командному составу.
+  phone        String?
+  bio          String?
+  updatedAt    DateTime @updatedAt
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique // SUPERADMIN, COMMANDER, COMMISSAR, STAFF, FIGHTER, CANDIDATE
+  name        String
+  description String?
+  // Уровень в иерархии: управлять можно только пользователями с меньшим уровнем.
+  level       Int
+  isSystem    Boolean          @default(true)
+  permissions RolePermission[]
+  users       User[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique // например "users.manage"
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Session {
+  id                String   @id @default(cuid())
+  // В cookie лежит случайный токен, в БД — только его SHA-256.
+  tokenHash         String   @unique
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  twoFactorVerified Boolean  @default(false)
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+  lastSeenAt        DateTime @default(now())
+  expiresAt         DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum AuthTokenType {
+  INVITE // приглашение: установка первого пароля
+  PASSWORD_RESET
+  EMAIL_VERIFY
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+enum LinkChannel {
+  TELEGRAM
+  VK
+}
+
+// Одноразовый код привязки мессенджера к аккаунту.
+model LinkCode {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   LinkChannel
+  codeHash  String      @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([userId, channel])
+}
+
+model TelegramAccount {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Идентификация — только по числовому Telegram user ID, не по username.
+  telegramUserId BigInt   @unique
+  username       String?
+  firstName      String?
+  linkedAt       DateTime @default(now())
+  blockedBot     Boolean  @default(false)
+}
+
+model VkAccount {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vkUserId   BigInt   @unique
+  canMessage Boolean  @default(true)
+  linkedAt   DateTime @default(now())
+}
+
+// ───────────────────────────── Файлы ─────────────────────────────
+
+enum FileVisibility {
+  PUBLIC // фото галереи, обложки новостей, фото командного состава
+  INTERNAL // документы и вложения: только через проверку прав
+}
+
+model FileAsset {
+  id             String         @id @default(cuid())
+  storageKey     String         @unique // путь внутри UPLOAD_DIR
+  originalName   String
+  mimeType       String
+  size           Int
+  sha256         String
+  width          Int?
+  height         Int?
+  visibility     FileVisibility @default(INTERNAL)
+  uploadedById   String?
+  uploadedBy     User?          @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+
+  announcementId String?
+  announcement   Announcement?  @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  taskId         String?
+  task           Task?          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  profileAvatar  Profile?       @relation("ProfileAvatar")
+  document       Document?
+  photo          Photo?
+  newsCover      News?          @relation("NewsCover")
+  projectCover   Project?       @relation("ProjectCover")
+  teamPhoto      TeamMember?    @relation("TeamPhoto")
+
+  @@index([announcementId])
+  @@index([taskId])
+}
+
+// ───────────────────────────── Контент сайта (CMS) ─────────────────────────────
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model News {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  excerpt     String?
+  content     String // Markdown
+  coverFileId String?       @unique
+  cover       FileAsset?    @relation("NewsCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  status      PublishStatus @default(DRAFT)
+  publishedAt DateTime?
+  authorId    String?
+  author      User?         @relation("NewsAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, publishedAt])
+}
+
+// Страницы/блоки с редактируемым текстом: about, history, traditions, symbols, join, privacy…
+model Page {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  title          String
+  content        String // Markdown
+  seoTitle       String?
+  seoDescription String?
+  isPublished    Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+}
+
+// Публичная карточка командного состава. Не раскрывает внутренние аккаунты.
+model TeamMember {
+  id          String     @id @default(cuid())
+  fullName    String
+  position    String
+  bio         String?
+  photoFileId String?    @unique
+  photo       FileAsset? @relation("TeamPhoto", fields: [photoFileId], references: [id], onDelete: SetNull)
+  userId      String?    @unique
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  sortOrder   Int        @default(0)
+  isPublished Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Project {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  summary     String
+  description String // Markdown
+  partner     String?
+  period      String? // «лето 2025», «круглый год»
+  coverFileId String?    @unique
+  cover       FileAsset? @relation("ProjectCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  sortOrder   Int        @default(0)
+  isPublished Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  year        Int?
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FaqItem {
+  id          String   @id @default(cuid())
+  question    String
+  answer      String // Markdown
+  sortOrder   Int      @default(0)
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Gallery {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  eventDate   DateTime?
+  isPublished Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  photos      Photo[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Photo {
+  id        String    @id @default(cuid())
+  galleryId String
+  gallery   Gallery   @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  fileId    String    @unique
+  file      FileAsset @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  caption   String?
+  isCover   Boolean   @default(false)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([galleryId, sortOrder])
+}
+
+// ───────────────────────────── Жизнь отряда ─────────────────────────────
+
+model Announcement {
+  id           String      @id @default(cuid())
+  title        String
+  body         String // Markdown
+  pinned       Boolean     @default(false)
+  // Аудитория: минимальный уровень роли (10 — все, включая кандидатов; 20 — бойцы; 40+ — командный состав)
+  minRoleLevel Int         @default(20)
+  expiresAt    DateTime?
+  authorId     String?
+  author       User?       @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  attachments  FileAsset[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([pinned, createdAt])
+}
+
+enum EventType {
+  EVENT // мероприятие
+  MEETING // собрание
+  TRIP // выезд
+  WORK // трудовой проект / смена
+  DEADLINE
+  OTHER
+}
+
+enum EventStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+model Event {
+  id                   String             @id @default(cuid())
+  title                String
+  description          String?
+  type                 EventType          @default(EVENT)
+  status               EventStatus        @default(SCHEDULED)
+  startsAt             DateTime
+  endsAt               DateTime?
+  allDay               Boolean            @default(false)
+  location             String?
+  // Публичные события показываются в календаре на сайте (без участников).
+  isPublic             Boolean            @default(false)
+  minRoleLevel         Int                @default(10)
+  capacity             Int?
+  requiresConfirmation Boolean            @default(true)
+  organizerId          String?
+  organizer            User?              @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: SetNull)
+  createdById          String?
+  createdBy            User?              @relation("EventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reminderSentAt       DateTime?
+  participants         EventParticipant[]
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([startsAt])
+}
+
+enum ParticipationStatus {
+  INVITED
+  GOING
+  MAYBE
+  NOT_GOING
+  ATTENDED
+}
+
+model EventParticipant {
+  eventId     String
+  userId      String
+  event       Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      ParticipationStatus @default(INVITED)
+  respondedAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@id([eventId, userId])
+  @@index([userId])
+}
+
+enum TaskStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model Task {
+  id             String         @id @default(cuid())
+  title          String
+  description    String?
+  status         TaskStatus     @default(NEW)
+  dueAt          DateTime?
+  createdById    String?
+  createdBy      User?          @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  reminderSentAt DateTime?
+  assignees      TaskAssignee[]
+  comments       TaskComment[]
+  attachments    FileAsset[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, dueAt])
+}
+
+model TaskAssignee {
+  taskId     String
+  userId     String
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt DateTime @default(now())
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+model DocumentCategory {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  description  String?
+  minRoleLevel Int        @default(20)
+  sortOrder    Int        @default(0)
+  documents    Document[]
+}
+
+model Document {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  categoryId   String
+  category     DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  fileId       String           @unique
+  file         FileAsset        @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  // Если задано — строже, чем у категории (итоговый уровень = max).
+  minRoleLevel Int?
+  uploadedById String?
+  uploadedBy   User?            @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([categoryId])
+}
+
+// ───────────────────────────── Набор ─────────────────────────────
+
+enum ApplicationStatus {
+  NEW
+  CONTACTED
+  INTERVIEW
+  ACCEPTED
+  DECLINED
+}
+
+enum ApplicationSource {
+  WEB
+  VK_BOT
+  TELEGRAM_BOT
+}
+
+model JoinApplication {
+  id          String            @id @default(cuid())
+  fullName    String
+  age         Int
+  contact     String // телефон или email
+  telegram    String?
+  vk          String?
+  school      String?
+  comment     String?
+  source      ApplicationSource @default(WEB)
+  status      ApplicationStatus @default(NEW)
+  // Внутренние заметки командного состава.
+  notes       String?
+  consentAt   DateTime
+  // Для VK-заявок: числовой id пользователя VK (для ответа в сообщениях сообщества)
+  vkUserId    BigInt?
+  handledById String?
+  handledBy   User?             @relation("ApplicationHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User?             @relation("ApplicationUser", fields: [userId], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([status, createdAt])
+}
+
+// ───────────────────────────── Уведомления ─────────────────────────────
+
+enum NotificationType {
+  ANNOUNCEMENT
+  TASK_ASSIGNED
+  TASK_DEADLINE
+  TASK_COMMENT
+  EVENT_CREATED
+  EVENT_UPDATED
+  EVENT_REMINDER
+  APPLICATION_NEW
+  MAIL_READY
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  TELEGRAM
+  VK
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// Notification = IN_APP-уведомление, видимое в кабинете.
+model Notification {
+  id         String                 @id @default(cuid())
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  body       String
+  url        String?
+  readAt     DateTime?
+  createdAt  DateTime               @default(now())
+  deliveries NotificationDelivery[]
+
+  @@index([userId, readAt, createdAt])
+}
+
+// Очередь доставки во внешние каналы (outbox). Обрабатывается воркером.
+model NotificationDelivery {
+  id             String              @id @default(cuid())
+  notificationId String
+  notification   Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  channel        NotificationChannel
+  status         DeliveryStatus      @default(PENDING)
+  attempts       Int                 @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime            @default(now())
+  lockedUntil    DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@unique([notificationId, channel])
+  @@index([status, nextAttemptAt])
+}
+
+model NotificationPreference {
+  userId  String
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    NotificationType
+  channel NotificationChannel
+  enabled Boolean
+
+  @@id([userId, type, channel])
+}
+
+// ───────────────────────────── Почта @dragotop.ru ─────────────────────────────
+
+enum MailProvider {
+  STALWART
+  MANUAL
+}
+
+enum MailboxStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+model EmailAccount {
+  id                  String        @id @default(cuid())
+  userId              String        @unique
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address             String        @unique
+  provider            MailProvider
+  status              MailboxStatus @default(PENDING)
+  quotaMb             Int?
+  lastError           String?
+  // Временный пароль, зашифрованный APP_ENCRYPTION_KEY. Показывается ТОЛЬКО владельцу
+  // один раз в кабинете и затем стирается. Администратор его не видит.
+  pendingSecretEnc    String?
+  pendingSecretExpiresAt DateTime?
+  lastPasswordResetAt DateTime?
+  createdById         String?
+  createdBy           User?         @relation("EmailAccountCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+// ───────────────────────────── Служебное ─────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String // например "user.create", "role.change"
+  entity    String
+  entityId  String?
+  ipAddress String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@index([actorId])
+}
+
+model Setting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+// Защита от повторной обработки входящих событий ботов (VK event_id, Telegram update_id).
+model ProcessedUpdate {
+  source     String
+  externalId String
+  createdAt  DateTime @default(now())
+
+  @@id([source, externalId])
+  @@index([createdAt])
+}
+
+// Состояние многошаговых диалогов ботов (анкета в VK/Telegram).
+model BotConversation {
+  channel        LinkChannel
+  externalUserId BigInt
+  state          String
+  data           Json     @default("{}")
+  expiresAt      DateTime
+  updatedAt      DateTime @updatedAt
+
+  @@id([channel, externalUserId])
+}
