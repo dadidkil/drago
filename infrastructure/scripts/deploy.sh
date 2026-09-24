@@ -38,12 +38,21 @@ echo "▶ Версия: $(git rev-parse --short HEAD 2>/dev/null || echo unknown
 
 echo "▶ Проверка ресурсов"
 DOCKER_ROOT=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)
-FREE_GB=$(df -BG --output=avail "$DOCKER_ROOT" 2>/dev/null | tail -1 | tr -dc '0-9')
+free_gb() { df -BG --output=avail "$DOCKER_ROOT" 2>/dev/null | tail -1 | tr -dc '0-9'; }
+FREE_GB=$(free_gb)
 MEM_MB=$(awk '/MemAvailable/{m=$2} /SwapFree/{s=$2} END{print int((m+s)/1024)}' /proc/meminfo)
 echo "  свободно на диске ($DOCKER_ROOT): ${FREE_GB:-?} ГБ; память+swap доступно: ${MEM_MB} МБ"
+if [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt 8 ]; then
+  # Кэш сборки и «висячие» образы — только кэш, данные (БД, файлы, тома) не затрагиваются.
+  echo "  мало места — очищаю кэш сборки Docker и неиспользуемые образы…"
+  docker builder prune -af >/dev/null 2>&1 || true
+  docker image prune -f >/dev/null 2>&1 || true
+  FREE_GB=$(free_gb)
+  echo "  после очистки свободно: ${FREE_GB:-?} ГБ"
+fi
 if [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt 6 ] && [ "${FORCE:-0}" != "1" ]; then
-  echo "❌ Меньше 6 ГБ свободного места — сборка может заполнить диск и уронить сервер."
-  echo "   Освободите место (docker system df; docker builder prune -f; docker image prune -f) или FORCE=1 make deploy"
+  echo "❌ Меньше 6 ГБ свободного места даже после очистки кэша — сборка может заполнить диск и уронить сервер."
+  echo "   Проверьте: du -xh / --max-depth=2 | sort -h | tail -20; ls -la /srv/drago/backups. Либо FORCE=1 make deploy"
   exit 1
 fi
 if [ "$MEM_MB" -lt 1500 ] && [ "${FORCE:-0}" != "1" ]; then
@@ -84,5 +93,6 @@ else
   curl -fsS "https://${DOMAIN}/api/health" >/dev/null && echo "✅ https://${DOMAIN} отвечает" || echo "⚠ https://${DOMAIN} пока не отвечает (DNS/сертификат?)"
 fi
 docker image prune -f >/dev/null
-docker builder prune -f --filter until=168h >/dev/null 2>&1 || true
+# Держим кэш сборки в разумных пределах (на небольшом диске он быстро разрастается до десятков ГБ).
+docker builder prune -f --max-used-space 4gb >/dev/null 2>&1 || docker builder prune -f --filter until=72h >/dev/null 2>&1 || true
 echo "▶ Готово. Лог: $LOG"
