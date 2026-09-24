@@ -12,6 +12,13 @@
   `docs/operations.md`, `docs/research-drago.md`.
 - `apps/web/AGENTS.md` — Next.js 16 отличается от старых версий; документация лежит в `node_modules/next/dist/docs/`.
 
+## Если сессия запущена НЕ на сервере (на компьютере пользователя)
+
+Сервер доступен по SSH без пароля (ключ): `ssh -o BatchMode=yes root@2.56.90.240 hostname`. Все серверные команды
+выполняй удалённо, например `ssh root@2.56.90.240 'cd /opt/drago && make audit'`. Длинные операции (`make deploy`)
+запускай в tmux на сервере: `ssh root@2.56.90.240 'tmux new -d -s deploy "cd /opt/drago && make deploy 2>&1 | tee /root/deploy.log"'`,
+затем читай `/root/deploy.log`. Правила ниже действуют так же. Секреты из `/opt/drago/.env` в чат не выводи.
+
 ## Известное состояние (на 2026-09-24)
 
 - Сервер: `2.56.90.240` (PTR `academic-special-kestrel.ihchost.rocks`). Предположительно на нём ISPmanager — **проверь**:
