@@ -56,7 +56,23 @@ fi
 for p in /usr/local/fastpanel2 /usr/local/vesta /usr/local/hestia /usr/local/cpanel /opt/brainycp; do [ -e "$p" ] && echo "Обнаружена другая панель: $p"; done
 
 section "DNS домена"
-if have dig; then for d in ${DRAGO_DOMAIN:-dragotop.ru}; do echo "NS: $(dig +short NS "$d" | tr '\n' ' ')"; echo "A:  $(dig +short A "$d" | tr '\n' ' ')"; echo "MX: $(dig +short MX "$d" | tr '\n' ' ')"; done; fi
+DOMAIN_CHECK=${DRAGO_DOMAIN:-dragotop.ru}
+SERVER_IP=$(curl -4 -s --max-time 5 https://ifconfig.me || true)
+if have dig; then
+  echo "NS: $(dig +short NS "$DOMAIN_CHECK" | tr '\n' ' ')"
+  echo "MX: $(dig +short MX "$DOMAIN_CHECK" | tr '\n' ' ')"
+  for host in "$DOMAIN_CHECK" "www.$DOMAIN_CHECK"; do
+    a=$(dig +short A "$host" | grep -E '^[0-9.]+$' | tr '\n' ' ' | sed 's/ $//')
+    if [ -n "$SERVER_IP" ] && [ "$a" = "$SERVER_IP" ]; then
+      echo "A $host: $a ✔ указывает на этот сервер"
+    else
+      echo "A $host: ${a:-нет записи} ✘ НЕ указывает на этот сервер ($SERVER_IP) — Let's Encrypt не выпустит сертификат, сайт откроется не отсюда."
+      echo "  Исправьте A-запись там, где управляется DNS (см. NS выше; для ns*.reg.ru — в личном кабинете REG.RU)."
+    fi
+  done
+else
+  echo "dig не установлен (apt-get install -y dnsutils)"
+fi
 
 section "Веб-серверы"
 for s in nginx apache2 httpd caddy lighttpd; do systemctl is-active "$s" >/dev/null 2>&1 && echo "$s: АКТИВЕН"; done

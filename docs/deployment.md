@@ -32,6 +32,7 @@
 19. [Если что-то пошло не так](#19-если-что-то-пошло-не-так)
 - [Приложение А. Сервер без ISPmanager (Caddy)](#приложение-а-сервер-без-ispmanager-caddy)
 - [Приложение Б. Шпаргалка команд](#приложение-б-шпаргалка-команд)
+- [Приложение В. Claude Code прямо на сервере](#приложение-в-claude-code-прямо-на-сервере)
 
 ---
 
@@ -187,6 +188,11 @@ dig +short A www.dragotop.ru
 Если сайта нет — **Сайты → Создать** с этими же параметрами.
 
 ### 5.2. SSL-сертификат
+
+**Сначала проверьте DNS:** `dig +short dragotop.ru` и `dig +short www.dragotop.ru` должны вернуть IP **этого**
+сервера (`curl -4 -s ifconfig.me`). Иначе Let's Encrypt пойдёт на другой сервер и выдаст ошибку «Invalid response …
+/.well-known/acme-challenge/…: 404». На 24.09.2026 обе записи указывали на `95.163.244.138`, а не на 2.56.90.240 —
+исправьте их в REG.RU (шаг 4) и подождите 15–60 минут (TTL записей был 6 часов).
 
 **SSL-сертификаты → Создать → Let's Encrypt** → домены `dragotop.ru` и `www.dragotop.ru`. Затем в настройках сайта
 включите **SSL** и выберите этот сертификат. Панель сама продлевает сертификат.
@@ -639,6 +645,7 @@ make restore f=/srv/drago/backups/daily/db-ГГГГММДД-ЧЧММ.dump u=/srv
 | **502 Bad Gateway** | контейнер web не запущен или порт другой | `make ps`, `make logs s=web`; `curl http://127.0.0.1:3000/api/health`; сверить `WEB_PORT` в `.env` и в `drago-proxy.conf` |
 | Открывается заглушка ISPmanager / «Index of» | прокси не подключён или SSL у сайта выключен | `make nginx-proxy`; включить SSL сайта (5.2); `nginx -T \| grep drago` |
 | `nginx -t` падает после установки | конфликт с кастомными правилами сайта | скрипт откатит сам; проверьте, нет ли своих `rewrite` в конфиге сайта; ручной вариант — шаг 10 |
+| Let's Encrypt: «Invalid response from http://dragotop.ru/.well-known/acme-challenge/…: 404» (в сообщении чужой IP) | A-запись домена указывает на другой сервер | IP в сообщении — куда ходил Let's Encrypt. Сверить с `curl -4 -s ifconfig.me`; исправить `A @` и `A www` в REG.RU; подождать до TTL; повторить |
 | Сертификат не продлевается | закрыт 80 порт или удалён `.well-known` | 80/tcp открыт в брандмауэре; путь `/.well-known/acme-challenge/` наш прокси не трогает |
 | «Forbidden: cross-origin request» при отправке форм | запрос пришёл с другого домена или прокси не передаёт `Host` | открывать сайт строго по `https://dragotop.ru`; в `drago-proxy.conf` должны быть `Host $host` и `X-Forwarded-Host $host` |
 | Не уходят уведомления в Telegram/VK, письма | контейнеры без интернета после изменения брандмауэра | `systemctl restart docker`; `make logs s=worker` |
@@ -682,3 +689,34 @@ make shell-db                           # консоль PostgreSQL
 make preflight-mail                     # проверка DNS/PTR/порта 25 для почты
 systemctl restart docker                # после изменения брандмауэра ISPmanager
 ```
+
+---
+
+## Приложение В. Claude Code прямо на сервере
+
+Облачная сессия Claude не может подключиться к серверу по SSH. Чтобы Claude выполнял деплой сам, запустите
+Claude Code **на сервере** и управляйте им из приложения Claude (Remote Control):
+
+```bash
+ssh root@2.56.90.240
+curl -fsSL https://claude.ai/install.sh | bash
+apt-get install -y tmux git
+[ -d /opt/drago ] || git clone https://github.com/dadidkil/drago.git /opt/drago
+cd /opt/drago && git checkout claude/amazing-maxwell-xkzunz && git pull
+tmux new -s claude            # сессия переживёт обрыв SSH; вернуться: tmux attach -t claude
+claude remote-control         # при первом запуске — вход в аккаунт по ссылке
+```
+
+Сессия появится в приложении Claude Code. Контекст проекта и правила безопасности она возьмёт из `CLAUDE.md` в корне
+репозитория: что делать сама, а что — только после вашего подтверждения.
+
+Что по-прежнему делаете вы:
+
+- DNS в REG.RU;
+- PTR и порт 25 — у хостера;
+- @BotFather и настройки VK;
+- 2FA на своём телефоне;
+- подтверждения рискованных действий: удаление, брандмауэр, SSH, перезагрузка.
+
+Сессия на сервере имеет полный доступ к нему. Не включайте режим без подтверждений и завершайте её, когда работа
+закончена: `Ctrl+C`, затем `exit` из tmux.

@@ -29,10 +29,23 @@
 | 4 | Провайдер почты `MAIL_PROVIDER=ispmanager` (API панели: email.edit/suspend/resume/delete) | ✅ тесты с mock-сервером; пароли только в теле POST |
 | 5 | Полный гайд по деплою `docs/deployment.md` | ✅ |
 
+## 2026-09-24 — Диагностика ошибки Let's Encrypt в ISPmanager
+
+- Симптом (скриншот владельца): «Проверка владения доменом — 95.163.244.138: Invalid response from
+  http://dragotop.ru/.well-known/acme-challenge/…: 404».
+- Проверено по DNS: NS `ns1/ns2.reg.ru`; `A dragotop.ru` и `A www.dragotop.ru` = **95.163.244.138** (TTL 21600);
+  MX/TXT нет; `mail.dragotop.ru` — NXDOMAIN. PTR 2.56.90.240 → `academic-special-kestrel.ihchost.rocks`.
+- Вывод: домен указывает не на сервер 2.56.90.240, Let's Encrypt проверял другой сервер.
+- Действие владельца: сменить `A @` и `A www` в REG.RU на IP сервера с ISPmanager, подождать, повторить выпуск.
+- Добавлено: проверка «DNS указывает на этот сервер» в `00-server-audit.sh`; `CLAUDE.md` для запуска Claude Code на
+  сервере (Remote Control) — см. `deployment.md`, приложение В.
+
 ## Осталось сделать на сервере (владелец/администратор)
 
 Порядок и команды — в [deployment.md](deployment.md) (сервер с ISPmanager и привязанным доменом):
 
+- [ ] **Исправить DNS в REG.RU:** `A @` и `A www` → IP сервера с ISPmanager (сейчас 95.163.244.138)
+- [ ] (по желанию) запустить Claude Code на сервере — `deployment.md`, приложение В
 - [ ] `00-server-audit.sh` — приложить отчёт в этот журнал (без секретов)
 - [ ] `01-backup-existing.sh` — скачать архив с сервера
 - [ ] `02-bootstrap.sh`
