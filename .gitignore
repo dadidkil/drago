@@ -24,3 +24,6 @@ uploads/
 backups/
 *.log
 .DS_Store
+
+# Дампы Redis (локальная разработка)
+*.rdb
