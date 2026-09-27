@@ -9,13 +9,15 @@ ifeq ($(WITH_MAIL),1)
 COMPOSE += -f infrastructure/mail/docker-compose.mail.yml
 endif
 
-.PHONY: nginx-proxy help audit backup-existing bootstrap secrets deploy up down ps logs migrate backup restore invite-admin reset-link shell-db preflight-mail
+.PHONY: diag-access nginx-proxy help audit backup-existing bootstrap secrets deploy up down ps logs migrate backup restore invite-admin reset-link shell-db preflight-mail
 
 help:            ## Список команд
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 audit:           ## Read-only аудит сервера
 	$(SUDO) bash infrastructure/scripts/00-server-audit.sh
+diag-access:     ## Read-only: почему сайт открывается не у всех (DNS, IPv6, сертификат, брандмауэр, лимиты)
+	$(SUDO) bash infrastructure/scripts/diag-access.sh
 backup-existing: ## Бэкап всего, что было на сервере до установки
 	$(SUDO) bash infrastructure/scripts/01-backup-existing.sh
 bootstrap:       ## Docker, UFW, fail2ban, swap, каталоги

@@ -68,6 +68,9 @@ model User {
   emailAccountsCreated  EmailAccount[]     @relation("EmailAccountCreator")
   auditLogs             AuditLog[]
   teamMember            TeamMember?
+  surveysCreated        Survey[]           @relation("SurveyCreator")
+  surveyCompletions     SurveyCompletion[]
+  surveyResponses       SurveyResponse[]
 
   @@index([roleId])
   @@index([status])
@@ -560,6 +563,8 @@ enum NotificationType {
   EVENT_REMINDER
   APPLICATION_NEW
   MAIL_READY
+  SURVEY_DUE
+  SURVEY_ALERT
   SYSTEM
 }
 
@@ -701,4 +706,89 @@ model BotConversation {
   updatedAt      DateTime @updatedAt
 
   @@id([channel, externalUserId])
+}
+
+// ── Формы (самочувствие, обратная связь…) ─────────────────────────────────────
+
+enum SurveyEnforcement {
+  REMIND // только напоминания
+  BANNER // баннер в кабинете + напоминания
+  BLOCK // после срока кабинет закрыт, пока форма не пройдена
+}
+
+model Survey {
+  id                String            @id @default(cuid())
+  title             String
+  description       String? // Markdown, показывается над формой
+  questions         Json // SurveyQuestion[] (packages/shared/src/surveys.ts)
+  isActive          Boolean           @default(false)
+  // Анонимно: ответ хранится без userId, отметка «прошёл» — отдельно (SurveyCompletion)
+  anonymous         Boolean           @default(false)
+  // Аудитория: уровни ролей [minRoleLevel; maxRoleLevel]
+  minRoleLevel      Int               @default(20)
+  maxRoleLevel      Int?
+  // Расписание: периоды по periodDays от startsAt (null — однократно), на прохождение — dueDays от начала периода
+  startsAt          DateTime
+  endsAt            DateTime?
+  periodDays        Int?              @default(14)
+  dueDays           Int               @default(3)
+  enforcement       SurveyEnforcement @default(BANNER)
+  notifyOnStart     Boolean           @default(true)
+  remindBeforeHours Int?              @default(24)
+  notifyOverdue     Boolean           @default(true)
+  staffDigest       Boolean           @default(true)
+  allowEdit         Boolean           @default(false)
+  retentionDays     Int               @default(365)
+  createdById       String?
+  createdBy         User?             @relation("SurveyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  completions       SurveyCompletion[]
+  responses         SurveyResponse[]
+  dispatches        SurveyDispatch[]
+
+  @@index([isActive])
+}
+
+/** Кто и когда прошёл форму в периоде — одна запись на человека и период. */
+model SurveyCompletion {
+  id          String   @id @default(cuid())
+  surveyId    String
+  survey      Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period      Int
+  completedAt DateTime @default(now())
+
+  @@unique([surveyId, userId, period])
+  @@index([surveyId, period])
+}
+
+/** Ответы. В анонимной форме userId = null, createdAt = начало периода (без привязки ко времени прохождения). */
+model SurveyResponse {
+  id        String   @id @default(cuid())
+  surveyId  String
+  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  period    Int
+  answers   Json
+  flagged   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([surveyId, userId, period])
+  @@index([surveyId, period])
+}
+
+/** Какие рассылки по периоду уже сделаны (start / reminder / overdue / digest) — защита от дублей. */
+model SurveyDispatch {
+  id       String   @id @default(cuid())
+  surveyId String
+  survey   Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  period   Int
+  kind     String
+  sentAt   DateTime @default(now())
+
+  @@unique([surveyId, period, kind])
 }

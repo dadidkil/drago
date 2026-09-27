@@ -15,3 +15,4 @@ export * from "./env";
 export * from "./telegram-api";
 export * from "./vk-api";
 export * from "./conversation";
+export * from "./surveys";

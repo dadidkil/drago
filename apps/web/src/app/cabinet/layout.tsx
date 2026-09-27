@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CalendarRange,
   CircleHelp,
+  ClipboardCheck,
   FileText,
   LayoutDashboard,
   ListTodo,
@@ -17,8 +18,10 @@ import {
   Users,
 } from "lucide-react";
 import { db } from "@drago/database";
-import { fullName } from "@drago/shared";
+import { blockingSurvey, surveysForUser } from "@drago/core";
+import { formatDateTime, fullName } from "@drago/shared";
 import { AppShell, type NavGroup } from "@/components/ui/shell";
+import { SurveyGate, type PendingSurvey } from "@/components/cabinet/survey-gate";
 import { UserMenu } from "@/components/cabinet/user-menu";
 import { requireUser } from "@/lib/auth/current-user";
 import { fileUrl } from "@/lib/uploads";
@@ -27,7 +30,20 @@ export const metadata: Metadata = { title: { default: "Личный кабине
 
 export default async function CabinetLayout({ children }: { children: ReactNode }) {
   const user = await requireUser("/cabinet");
-  const unread = await db.notification.count({ where: { userId: user.id, readAt: null } });
+  const [unread, surveys] = await Promise.all([
+    db.notification.count({ where: { userId: user.id, readAt: null } }),
+    surveysForUser({ id: user.id, roleLevel: user.level }),
+  ]);
+  const toPending = (s: (typeof surveys)[number]): PendingSurvey => ({
+    id: s.survey.id,
+    title: s.survey.title,
+    due: formatDateTime(s.period.dueAt),
+    overdue: s.status === "overdue",
+  });
+  const open = surveys.filter((s) => s.status !== "done");
+  // Баннер — для форм с режимом «баннер» или «блокировка»; «только напоминания» — лишь счётчик в меню.
+  const banner = open.filter((s) => s.survey.enforcement !== "REMIND").map(toPending);
+  const block = blockingSurvey(surveys);
 
   const groups: NavGroup[] = [
     {
@@ -36,6 +52,7 @@ export default async function CabinetLayout({ children }: { children: ReactNode 
         { href: "/cabinet/notifications", label: "Уведомления", icon: <Bell />, badge: unread },
         { href: "/cabinet/announcements", label: "Объявления", icon: <Megaphone /> },
         { href: "/cabinet/tasks", label: "Задачи", icon: <ListTodo /> },
+        { href: "/cabinet/surveys", label: "Формы", icon: <ClipboardCheck />, badge: open.length },
         { href: "/cabinet/events", label: "Мероприятия", icon: <CalendarDays /> },
         { href: "/cabinet/calendar", label: "Календарь", icon: <CalendarRange /> },
         { href: "/cabinet/documents", label: "Документы", icon: <FileText /> },
@@ -64,7 +81,9 @@ export default async function CabinetLayout({ children }: { children: ReactNode 
       title="Личный кабинет"
       user={<UserMenu name={name} roleName={user.role.name} avatarUrl={user.profile?.avatarFileId ? fileUrl(user.profile.avatarFileId) : null} />}
     >
-      {children}
+      <SurveyGate pending={banner} blocked={block ? toPending(block) : null}>
+        {children}
+      </SurveyGate>
     </AppShell>
   );
 }

@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { db } from "@drago/database";
-import { createLogger } from "@drago/core";
+import { createLogger, surveyDispatchJob, surveyRetentionCleanup } from "@drago/core";
 import { processDeliveries } from "./deliveries";
 import { cleanup, eventReminders, taskDeadlineReminders } from "./jobs";
 
@@ -36,8 +36,12 @@ async function main() {
     every("reminders", 60_000, async () => {
       await taskDeadlineReminders();
       await eventReminders();
+      await surveyDispatchJob();
     }),
-    every("cleanup", 60 * 60_000, cleanup),
+    every("cleanup", 60 * 60_000, async () => {
+      await cleanup();
+      await surveyRetentionCleanup();
+    }),
     every("heartbeat", 30_000, () => writeFile(HEARTBEAT, String(Date.now()))),
   ];
 

@@ -20,7 +20,7 @@ export default async function ProfilePage() {
   const p = user.profile;
   const name = p ? fullName(p) : user.email;
 
-  const rows = NOTIFICATION_TYPES.filter((t) => NOTIFICATION_META[t].configurable && (t !== "APPLICATION_NEW" || user.can("applications.read"))).map((t) => ({
+  const rows = NOTIFICATION_TYPES.filter((t) => NOTIFICATION_META[t].configurable && (t !== "APPLICATION_NEW" || user.can("applications.read")) && (t !== "SURVEY_ALERT" || user.can("surveys.results"))).map((t) => ({
     type: t,
     label: NOTIFICATION_META[t].label,
     values: Object.fromEntries(

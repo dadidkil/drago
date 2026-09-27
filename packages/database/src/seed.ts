@@ -25,6 +25,10 @@ loadEnv({ path: path.resolve(import.meta.dirname, "../../../.env"), quiet: true 
 const resetPermissions = process.argv.includes("--reset-permissions");
 
 async function seedRbac() {
+  // Права, которых ещё нет в базе (появились в новой версии), — выдаём существующим ролям по умолчанию.
+  // Ручные правки матрицы не затрагиваются: SUPERADMIN не мог настроить право, которого не существовало.
+  const existingKeys = new Set((await db.permission.findMany({ select: { key: true } })).map((p) => p.key));
+  const addedKeys = existingKeys.size > 0 ? PERMISSION_KEYS.filter((k) => !existingKeys.has(k)) : [];
   for (const key of PERMISSION_KEYS) {
     await db.permission.upsert({
       where: { key },
@@ -50,6 +54,10 @@ async function seedRbac() {
         data: DEFAULT_ROLE_PERMISSIONS[key].map((p) => ({ roleId: role.id, permissionId: permId.get(p)! })),
         skipDuplicates: true,
       });
+    } else if (addedKeys.length > 0) {
+      const grant = DEFAULT_ROLE_PERMISSIONS[key].filter((p) => addedKeys.includes(p));
+      await db.rolePermission.createMany({ data: grant.map((p) => ({ roleId: role.id, permissionId: permId.get(p)! })), skipDuplicates: true });
+      if (grant.length) console.log(`  ${key}: добавлены новые права ${grant.join(", ")}`);
     }
   }
   console.log(`✓ Роли и права: ${ROLE_KEYS.length} ролей, ${PERMISSION_KEYS.length} прав`);
@@ -142,6 +150,8 @@ const PAGES: { slug: string; title: string; content: string; isPublished: boolea
 **Личный кабинет бойца:** ФИО, email, роль в отряде, по желанию — фото и телефон. Контакты бойцов видят только сам боец и командный состав. Публичных списков бойцов нет.
 
 **Технические данные:** IP-адрес и сведения о браузере сохраняются для защиты от взлома (активные сессии, журнал действий администраторов).
+
+**Формы в личном кабинете:** ответы бойцов на регулярные формы (например, о самочувствии). Их видит только руководство отряда с доступом к результатам (по умолчанию — командир и комиссар); в анонимных формах ответы хранятся без имени. Ответы удаляются автоматически по истечении срока хранения, заданного для формы.
 
 ## Зачем
 
@@ -454,6 +464,8 @@ const CONTENT_FIXES: { slug: string; from: string; to: string }[] = [
   { slug: "privacy", from: `**Заявка на вступление:** фамилия и имя, возраст, контакт для связи (телефон или email), по желанию — ник Telegram, страница VK, учебное заведение и комментарий. Мы не запрашиваем паспортные данные, адрес и другие сведения, не нужные для рассмотрения заявки.`, to: `**Заявки на вступление сайт не собирает.** Их принимает МосРСО в своём приложении во ВКонтакте; к данным, которые вы там указываете, применяются правила МосРСО и ВКонтакте.` },
   { slug: "privacy", from: `Только для рассмотрения заявки, связи с кандидатом, организации работы и жизни отряда.`, to: `Только для организации работы и жизни отряда.` },
   { slug: "privacy", from: `Заявки хранятся не дольше срока, установленного в настройках системы (по умолчанию 1 год), затем удаляются автоматически. Аккаунт бойца`, to: `Аккаунт бойца` },
+  // 2026-09: формы (самочувствие и др.) в политике ПДн
+  { slug: "privacy", from: `**Технические данные:** IP-адрес и сведения о браузере сохраняются для защиты от взлома (активные сессии, журнал действий администраторов).`, to: `**Технические данные:** IP-адрес и сведения о браузере сохраняются для защиты от взлома (активные сессии, журнал действий администраторов).\n\n**Формы в личном кабинете:** ответы бойцов на регулярные формы (например, о самочувствии). Их видит только руководство отряда с доступом к результатам (по умолчанию — командир и комиссар); в анонимных формах ответы хранятся без имени. Ответы удаляются автоматически по истечении срока хранения, заданного для формы.` },
   { slug: "privacy", from: `Сайт рассчитан на подростков 14–17 лет. Отправляя заявку, участник подтверждает, что его родители (законные представители) знают о заявке. Для трудоустройства потребуются согласия, о которых расскажет командный состав.`, to: `Сайт рассчитан на подростков 14–17 лет. Для трудоустройства потребуются согласия родителей (законных представителей), о которых расскажет командный состав.` },
 ];
 const FAQ_FIXES: { question: string; from: string; to: string }[] = [
@@ -467,7 +479,8 @@ const FAQ_FIXES: { question: string; from: string; to: string }[] = [
 async function applyContentFixes() {
   for (const f of CONTENT_FIXES) {
     const page = await db.page.findUnique({ where: { slug: f.slug } });
-    if (page?.content.includes(f.from)) {
+    // Повторный запуск не дублирует вставку: если новый текст уже есть, правка пропускается.
+    if (page?.content.includes(f.from) && !page.content.includes(f.to)) {
       await db.page.update({ where: { slug: f.slug }, data: { content: page.content.replace(f.from, f.to) } });
       console.log(`  текст страницы ${f.slug} обновлён`);
     }

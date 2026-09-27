@@ -8,6 +8,8 @@ export const NOTIFICATION_TYPES = [
   "EVENT_REMINDER",
   "APPLICATION_NEW",
   "MAIL_READY",
+  "SURVEY_DUE",
+  "SURVEY_ALERT",
   "SYSTEM",
 ] as const;
 export type NotificationTypeKey = (typeof NOTIFICATION_TYPES)[number];
@@ -28,5 +30,7 @@ export const NOTIFICATION_META: Record<
   EVENT_REMINDER: { label: "Напоминания о мероприятиях", defaults: { TELEGRAM: true, VK: false, EMAIL: false }, configurable: true },
   APPLICATION_NEW: { label: "Новые заявки (командный состав)", defaults: { TELEGRAM: true, VK: false, EMAIL: true }, configurable: true },
   MAIL_READY: { label: "Корпоративная почта", defaults: { TELEGRAM: true, VK: false, EMAIL: true }, configurable: false },
+  SURVEY_DUE: { label: "Обязательные формы: новые и напоминания", defaults: { TELEGRAM: true, VK: true, EMAIL: false }, configurable: true },
+  SURVEY_ALERT: { label: "Сигналы из форм (командный состав)", defaults: { TELEGRAM: true, VK: false, EMAIL: true }, configurable: true },
   SYSTEM: { label: "Системные сообщения", defaults: { TELEGRAM: false, VK: false, EMAIL: true }, configurable: false },
 };

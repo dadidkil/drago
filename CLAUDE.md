@@ -9,7 +9,7 @@
 - `docs/deployment.md` — **главный пошаговый гайд деплоя** (VPS с ISPmanager, шаги 1–19). Следуй ему.
 - `docs/operations-log.md` — журнал: что уже сделано и что осталось. **Дописывай туда каждое действие на сервере.**
 - `docs/architecture.md`, `docs/security.md`, `docs/rbac.md`, `docs/mail.md`, `docs/dns-records.md`, `docs/bots.md`,
-  `docs/operations.md`, `docs/research-drago.md`.
+  `docs/operations.md`, `docs/research-drago.md`, `docs/surveys.md` (обязательные формы: самочувствие и др.).
 - `apps/web/AGENTS.md` — Next.js 16 отличается от старых версий; документация лежит в `node_modules/next/dist/docs/`.
 
 ## Если сессия запущена НЕ на сервере (на компьютере пользователя)
@@ -62,7 +62,7 @@ make invite-admin email=…  # одноразовая ссылка супера�
 
 Это production-сервер. В системе будут персональные данные несовершеннолетних.
 
-**Делай сам (безопасно и обратимо):** read-only диагностика; `make audit`, `make ps`, `make logs`; сборка и `make deploy`;
+**Делай сам (безопасно и обратимо):** read-only диагностика; `make audit`, `make diag-access`, `make ps`, `make logs`; сборка и `make deploy`;
 `make nginx-proxy` (сам проверяет `nginx -t` и откатывается); `make backup`; правки кода в репозитории.
 
 **Сначала спроси пользователя и получи явное «да»:**

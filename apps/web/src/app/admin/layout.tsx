@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import {
   CalendarDays,
+  ClipboardCheck,
   ClipboardList,
   FileText,
   Images,
@@ -47,6 +48,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         ...item("events.manage", { href: "/admin/events", label: "Мероприятия", icon: <CalendarDays /> }),
         ...item("tasks.manage", { href: "/admin/tasks", label: "Задачи", icon: <ListTodo /> }),
         ...item("documents.manage", { href: "/admin/documents", label: "Документы", icon: <FileText /> }),
+        ...(user.can("surveys.manage") || user.can("surveys.results") ? [{ href: "/admin/surveys", label: "Формы", icon: <ClipboardCheck /> }] : []),
       ],
     },
     {
