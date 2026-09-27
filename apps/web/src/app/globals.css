@@ -55,8 +55,8 @@
   --color-water-bright: #4fb3ff;
   --color-earth: #3b7a2a;
   --color-earth-bright: #8fd16a;
-  --color-air: #5b54c9;
-  --color-air-bright: #a9a4ff;
+  --color-air: #4f5866; /* серебро «воздуха» с логотипа; AA на белом */
+  --color-air-bright: #c9d1dc;
 
   --color-success: #1f7a3d;
   --color-warning: #9a5b00;

@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { db } from "@drago/database";
 import { EXTERNAL_CHANNELS, CHANNEL_LABELS, NOTIFICATION_META, NOTIFICATION_TYPES, fullName } from "@drago/shared";
 import { InlineAction } from "@/components/ui/form";
+import { ImageCropUpload } from "@/components/ui/image-crop-upload";
 import { Avatar, Badge, Card, PageHeader } from "@/components/ui/misc";
 import { requireUser } from "@/lib/auth/current-user";
 import { fileUrl } from "@/lib/uploads";
-import { resendEmailVerification } from "./actions";
+import { removeAvatar, resendEmailVerification, uploadAvatar } from "./actions";
 import { NotificationPrefsForm, ProfileForm } from "./forms";
 
 export const metadata: Metadata = { title: "Профиль" };
@@ -47,7 +48,6 @@ export default async function ProfilePage() {
                 middleName: p?.middleName ?? null,
                 phone: p?.phone ?? null,
                 bio: p?.bio ?? null,
-                hasAvatar: Boolean(p?.avatarFileId),
               }}
             />
           </Card>
@@ -60,7 +60,13 @@ export default async function ProfilePage() {
         </div>
         <aside className="space-y-4 self-start">
           <Card className="text-center">
-            <Avatar src={p?.avatarFileId ? fileUrl(p.avatarFileId) : null} name={name} size={96} className="mx-auto" />
+            <ImageCropUpload
+              action={uploadAvatar}
+              removeAction={p?.avatarFileId ? removeAvatar : undefined}
+              removeConfirm="Удалить фото профиля?"
+              preview={<Avatar src={p?.avatarFileId ? fileUrl(p.avatarFileId) : null} name={name} size={112} className="mx-auto" />}
+              hint="Фото видят только участники отряда. Геолокация и другие метаданные удаляются."
+            />
             <p className="mt-3 text-lg font-semibold">{name}</p>
             <p className="text-sm text-muted">{p?.position || user.role.name}</p>
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">

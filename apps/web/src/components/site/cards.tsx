@@ -11,14 +11,14 @@ const GRADIENTS = [
   "from-[#ff6a3d] via-[#c93510] to-[#3a1208]",
   "from-[#4fb3ff] via-[#1769aa] to-[#0b2640]",
   "from-[#8fd16a] via-[#3b7a2a] to-[#15300e]",
-  "from-[#a9a4ff] via-[#5b54c9] to-[#1d1a47]",
+  "from-[#c9d1dc] via-[#6b7483] to-[#1f232b]",
 ];
 
 export function ElementCover({ index, className, label }: { index: number; className?: string; label?: string }) {
   return (
     <div className={cn("absolute inset-0 flex items-end overflow-hidden bg-gradient-to-br", GRADIENTS[index % 4], className)}>
       <div aria-hidden className="bg-scales absolute inset-0" />
-      <DragoMark className="absolute -right-6 -bottom-6 size-40 opacity-25" title="" />
+      <DragoMark className="absolute -right-6 -bottom-6 size-40 opacity-30 mix-blend-luminosity" title="" />
       {label && <span className="relative m-4 text-xs font-semibold tracking-[0.16em] text-white/80 uppercase">{label}</span>}
     </div>
   );
@@ -201,7 +201,7 @@ export function PhotoGrid({ photos }: { photos: { id: string; fileId: string; ca
     <ul className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
       {photos.map((photo, i) => (
         <li key={photo.id} className={cn("relative overflow-hidden rounded-2xl bg-paper-2", i % 5 === 0 ? "row-span-2 aspect-[3/4] md:aspect-auto" : "aspect-square")}>
-          <a href={`/media/${photo.fileId}`} target="_blank" rel="noopener" className="group block size-full">
+          <a href={`/media/${photo.fileId}`} target="_blank" rel="noopener" className="group relative block size-full">
             <Image
               src={`/media/${photo.fileId}`}
               alt={photo.caption ?? "Фото отряда"}

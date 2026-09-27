@@ -44,7 +44,7 @@ export default async function NewsItemPage({ params }: Props) {
     datePublished: item.publishedAt?.toISOString(),
     dateModified: item.updatedAt.toISOString(),
     image: cover ? [absoluteUrl(cover)] : undefined,
-    publisher: { "@type": "Organization", name: "ТОП «Драго»", logo: { "@type": "ImageObject", url: absoluteUrl("/icon.svg") } },
+    publisher: { "@type": "Organization", name: "ТОП «Драго»", logo: { "@type": "ImageObject", url: absoluteUrl("/brand/drago-logo-512.png") } },
     mainEntityOfPage: absoluteUrl(`/news/${item.slug}`),
   };
   return (

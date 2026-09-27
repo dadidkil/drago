@@ -1,12 +1,12 @@
 "use client";
 
-import { ActionForm, Checkbox, Field, FormMessage, Input, SubmitButton, Textarea } from "@/components/ui/form";
+import { ActionForm, Field, FormMessage, Input, SubmitButton, Textarea } from "@/components/ui/form";
 import { updateNotificationPrefs, updateProfile } from "./actions";
 
 export function ProfileForm({
   profile,
 }: {
-  profile: { lastName: string; firstName: string; middleName: string | null; phone: string | null; bio: string | null; hasAvatar: boolean };
+  profile: { lastName: string; firstName: string; middleName: string | null; phone: string | null; bio: string | null };
 }) {
   return (
     <ActionForm action={updateProfile} refreshOnSuccess className="grid gap-5">
@@ -28,10 +28,6 @@ export function ProfileForm({
       <Field label="О себе" name="bio" hint="Пара слов для отряда — до 500 символов">
         <Textarea name="bio" defaultValue={profile.bio ?? ""} maxLength={500} rows={3} />
       </Field>
-      <Field label="Фото профиля" name="avatar" hint="JPEG, PNG или WebP до 15 МБ. Метаданные (геолокация и пр.) удаляются автоматически. Фото видят только участники отряда.">
-        <Input name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="py-2 text-sm" />
-      </Field>
-      {profile.hasAvatar && <Checkbox name="removeAvatar" label="Удалить текущее фото" />}
       <div>
         <SubmitButton>Сохранить профиль</SubmitButton>
       </div>

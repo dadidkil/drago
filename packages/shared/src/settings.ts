@@ -30,6 +30,13 @@ export const settingSchemas = {
     extraLinks: z.array(z.object({ label: z.string().min(1).max(60), url: z.url() })).max(10),
     note: z.string().max(500),
   }),
+  /** Фото сайта (загружаются в админке, лежат в хранилище сервера, не в git): первое с hero — фон главного экрана. */
+  "site.media": z.object({
+    photos: z
+      .array(z.object({ fileId: z.string().regex(/^[a-z0-9]{10,40}$/i), alt: z.string().max(200) }))
+      .max(12),
+    heroFileId: z.string().regex(/^[a-z0-9]{10,40}$/i).nullable(),
+  }),
   security: z.object({
     requireStaff2fa: z.boolean(),
   }),
@@ -71,6 +78,10 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: SettingValue<K> } = {
     telegramUrl: "",
     extraLinks: [],
     note: "Быстрее всего ответим в сообщениях сообщества ВКонтакте.",
+  },
+  "site.media": {
+    photos: [],
+    heroFileId: null,
   },
   security: {
     requireStaff2fa: true,

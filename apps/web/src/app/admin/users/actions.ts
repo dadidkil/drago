@@ -9,6 +9,7 @@ import { emailSchema } from "@drago/shared";
 import { userAction, UserError, zf } from "@/lib/actions";
 import { revokeUserSessions } from "@/lib/auth/session";
 import { issueAuthToken } from "@/lib/auth/tokens";
+import { replaceAvatar } from "@/lib/avatars";
 import { deleteFileAsset } from "@/lib/uploads";
 import { assignableRole, createInvitedUser, manageableUser, sendInviteEmail } from "@/lib/users";
 
@@ -164,3 +165,21 @@ export const deleteUser = userAction(
     redirect("/admin/users?deleted=1");
   },
 );
+
+// ── Фото профиля пользователя (командный состав помогает заполнить аватары) ──
+export const setUserAvatar = userAction(
+  { permission: "users.manage", schema: z.object({ userId: zf.id(), file: z.instanceof(File, { error: "Файл не выбран" }) }) },
+  async (d, { user, ip }) => {
+    await manageableUser(user, d.userId);
+    await replaceAvatar(d.userId, d.file, { id: user.id, ip });
+    revalidatePath(`/admin/users/${d.userId}`);
+    return { ok: true, message: "Фото обновлено" };
+  },
+);
+
+export const removeUserAvatar = userAction({ permission: "users.manage", schema: z.object({ userId: zf.id() }) }, async (d, { user, ip }) => {
+  await manageableUser(user, d.userId);
+  await replaceAvatar(d.userId, null, { id: user.id, ip });
+  revalidatePath(`/admin/users/${d.userId}`);
+  return { ok: true, message: "Фото удалено" };
+});

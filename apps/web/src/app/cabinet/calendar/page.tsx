@@ -15,7 +15,7 @@ const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const TYPE_COLORS: Record<string, string> = {
   EVENT: "bg-fire-soft text-[#8f2508]",
   MEETING: "bg-[#e3f0fb] text-water",
-  TRIP: "bg-[#ecebff] text-air",
+  TRIP: "bg-[#eceff3] text-air",
   WORK: "bg-[#e8f3e2] text-earth",
   DEADLINE: "bg-[#fdecea] text-danger",
   OTHER: "bg-paper-2 text-ink-2",

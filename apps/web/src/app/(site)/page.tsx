@@ -3,7 +3,7 @@ import { ArrowUpRight, Trophy } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { Markdown } from "@/components/ui/markdown";
 import { TelegramIcon, VkIcon } from "@/components/site/brand";
-import { EventList, FaqList, NewsCard, PhotoGrid, ProjectCard, TeamCard } from "@/components/site/cards";
+import { EventList, FaqList, NewsCard, PhotoGrid, ProjectCard } from "@/components/site/cards";
 import { Hero } from "@/components/site/hero";
 import { Container, Section } from "@/components/site/section";
 import { getSession } from "@/lib/auth/session";
@@ -16,20 +16,18 @@ import {
   getPublicEvents,
   getPublishedPage,
   getSiteSettings,
-  getTeam,
 } from "@/lib/content";
 import { getNonce } from "@/lib/request";
 import { absoluteUrl } from "@/lib/site";
 
 export default async function HomePage() {
-  const [settings, session, about, history, joinPage, team, projects, achievements, photos, news, events, faq, nonce] =
+  const [settings, session, about, history, joinPage, projects, achievements, galleryPhotos, news, events, faq, nonce] =
     await Promise.all([
       getSiteSettings(),
       getSession(),
       getPublishedPage("about"),
       getPublishedPage("history"),
       getPublishedPage("join"),
-      getTeam(),
       getProjects(),
       getAchievements(),
       getLatestPhotos(8),
@@ -40,6 +38,12 @@ export default async function HomePage() {
     ]);
   const general = settings["site.general"];
   const contacts = settings["site.contacts"];
+  const media = settings["site.media"];
+  const heroPhoto = media.photos.find((p) => p.fileId === media.heroFileId) ?? null;
+  // «Жизнь отряда»: фото из опубликованных альбомов галереи, пока их нет — фото сайта (кроме фона главного экрана).
+  const photos = galleryPhotos.length
+    ? galleryPhotos
+    : media.photos.filter((p) => p.fileId !== media.heroFileId).map((p) => ({ id: p.fileId, fileId: p.fileId, caption: p.alt || null }));
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -47,7 +51,7 @@ export default async function HomePage() {
     name: "ТОП «Драго»",
     alternateName: "Трудовой отряд подростков «Драго»",
     url: absoluteUrl("/"),
-    logo: absoluteUrl("/icon.svg"),
+    logo: absoluteUrl("/brand/drago-logo-512.png"),
     description: general.heroSubtitle,
     areaServed: "Москва",
     parentOrganization: { "@type": "Organization", name: "Российские Студенческие Отряды" },
@@ -64,6 +68,7 @@ export default async function HomePage() {
         tagline={general.tagline}
         recruitmentOpen={general.recruitmentOpen}
         isLoggedIn={Boolean(session)}
+        photo={heroPhoto ? { src: `/media/${heroPhoto.fileId}`, alt: heroPhoto.alt } : null}
       />
 
       {about && (
@@ -74,7 +79,7 @@ export default async function HomePage() {
               {[
                 { k: "14–17", v: "возраст бойцов", c: "from-[#ff6a3d] to-[#c93510]" },
                 { k: "Москва", v: "трудовые объекты города", c: "from-[#4fb3ff] to-[#1769aa]" },
-                { k: "РСО", v: "часть большого движения", c: "from-[#a9a4ff] to-[#5b54c9]" },
+                { k: "РСО", v: "часть большого движения", c: "from-[#8d97a6] to-[#3f4652]" },
               ].map((s) => (
                 <div key={s.k} className={`rounded-2xl bg-gradient-to-br ${s.c} p-6 text-white`}>
                   <p className="font-display text-3xl font-bold">{s.k}</p>
@@ -89,16 +94,6 @@ export default async function HomePage() {
       {history && (
         <Section id="history" eyebrow="История" title={history.title} className="bg-paper-2" more={{ href: "/about#history", label: "Вся история" }}>
           <Markdown source={history.content} className="max-w-3xl" />
-        </Section>
-      )}
-
-      {team.length > 0 && (
-        <Section id="team" eyebrow="Командный состав" title="Люди, которые ведут «Драго»" more={{ href: "/team", label: "Весь командный состав" }}>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {team.slice(0, 4).map((m, i) => (
-              <TeamCard key={m.id} member={m} index={i} />
-            ))}
-          </div>
         </Section>
       )}
 
@@ -132,7 +127,7 @@ export default async function HomePage() {
       )}
 
       {photos.length > 0 && (
-        <Section id="gallery" eyebrow="Галерея" title="Жизнь отряда" className="bg-paper-2" more={{ href: "/gallery", label: "Все альбомы" }}>
+        <Section id="gallery" eyebrow="Галерея" title="Жизнь отряда" className="bg-paper-2" more={galleryPhotos.length ? { href: "/gallery", label: "Все альбомы" } : undefined}>
           <PhotoGrid photos={photos} />
         </Section>
       )}

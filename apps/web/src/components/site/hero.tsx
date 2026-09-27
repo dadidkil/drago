@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
@@ -10,15 +11,26 @@ export function Hero({
   tagline,
   recruitmentOpen,
   isLoggedIn,
+  photo,
 }: {
   title: string;
   subtitle: string;
   tagline: string;
   recruitmentOpen: boolean;
   isLoggedIn: boolean;
+  /** Фон главного экрана («Фото сайта» в админке). */
+  photo?: { src: string; alt: string } | null;
 }) {
   return (
     <section aria-labelledby="hero-title" className="bg-scales relative isolate overflow-hidden bg-ink text-paper">
+      {photo && (
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-20">
+          <Image src={photo.src} alt="" fill loading="eager" fetchPriority="high" sizes="100vw" className="object-cover object-center opacity-60" />
+          {/* Затемнение: текст слева читается на любом фото, справа фото видно лучше */}
+          <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/85 to-ink/35" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink via-transparent to-ink/60" />
+        </div>
+      )}
       {/* Свечение четырёх стихий */}
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
         <div className="animate-float absolute -top-32 right-[-10%] size-[34rem] rounded-full bg-fire-bright/30 blur-[110px]" />
@@ -60,7 +72,7 @@ export function Hero({
           <div className="animate-float relative aspect-square">
             <div className="absolute inset-6 rounded-full border border-white/10" />
             <div className="absolute inset-16 rounded-full border border-white/10" />
-            <DragoMark className="absolute inset-20 size-auto drop-shadow-[0_0_60px_rgb(255_106_61/0.45)]" title="" />
+            <DragoMark priority className="absolute inset-[12%] size-[76%] shadow-[0_0_80px_rgb(255_106_61/0.35)]" title="" />
           </div>
         </div>
 

@@ -47,7 +47,13 @@ function safeOriginalName(name: string): string {
  */
 export async function storeUpload(
   file: File,
-  opts: { kind: UploadKind; visibility: FileVisibility; uploadedById: string },
+  opts: {
+    kind: UploadKind;
+    visibility: FileVisibility;
+    uploadedById: string;
+    /** Точный размер для изображения (аватар, портрет): обрезка по центру «внимания» кадра. */
+    fit?: { width: number; height: number };
+  },
 ) {
   if (!(file instanceof File) || file.size === 0) throw new UserError("Файл не выбран");
   if (file.size > LIMITS[opts.kind]) throw new UserError(`Файл больше ${Math.round(LIMITS[opts.kind] / MB)} МБ`);
@@ -78,7 +84,11 @@ export async function storeUpload(
     try {
       const { data, info } = await sharp(input, { limitInputPixels: 80_000_000 })
         .rotate()
-        .resize({ width: 2560, height: 2560, fit: "inside", withoutEnlargement: true })
+        .resize(
+          opts.fit
+            ? { width: opts.fit.width, height: opts.fit.height, fit: "cover", position: sharp.strategy.attention }
+            : { width: 2560, height: 2560, fit: "inside", withoutEnlargement: true },
+        )
         .webp({ quality: 82 })
         .toBuffer({ resolveWithObject: true });
       output = data;

@@ -7,7 +7,7 @@ import { audit, rateLimit, sendMail, verifyEmailMail, appUrl } from "@drago/core
 import { EXTERNAL_CHANNELS, NOTIFICATION_META, NOTIFICATION_TYPES } from "@drago/shared";
 import { userAction, UserError, zf } from "@/lib/actions";
 import { issueAuthToken } from "@/lib/auth/tokens";
-import { deleteFileAsset, storeUpload } from "@/lib/uploads";
+import { replaceAvatar } from "@/lib/avatars";
 
 const nameRe = /^[A-Za-zА-Яа-яЁё\s'-]+$/;
 
@@ -19,30 +19,31 @@ export const updateProfile = userAction(
       middleName: zf.optStr(60),
       phone: zf.optStr(30).refine((v) => !v || /^[+\d\s()-]{6,30}$/.test(v), "Неверный формат телефона"),
       bio: zf.optStr(500),
-      avatar: zf.file(),
-      removeAvatar: zf.bool(),
     }),
   },
   async (d, { user, ip }) => {
-    let avatarFileId = user.profile?.avatarFileId ?? null;
-    const oldAvatar = avatarFileId;
-    if (d.avatar && d.avatar.size > 0) {
-      const asset = await storeUpload(d.avatar, { kind: "image", visibility: "INTERNAL", uploadedById: user.id });
-      avatarFileId = asset.id;
-    } else if (d.removeAvatar) {
-      avatarFileId = null;
-    }
     await db.profile.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, lastName: d.lastName, firstName: d.firstName, middleName: d.middleName, phone: d.phone, bio: d.bio, avatarFileId },
-      update: { lastName: d.lastName, firstName: d.firstName, middleName: d.middleName ?? null, phone: d.phone ?? null, bio: d.bio ?? null, avatarFileId },
+      create: { userId: user.id, lastName: d.lastName, firstName: d.firstName, middleName: d.middleName, phone: d.phone, bio: d.bio },
+      update: { lastName: d.lastName, firstName: d.firstName, middleName: d.middleName ?? null, phone: d.phone ?? null, bio: d.bio ?? null },
     });
-    if (oldAvatar && oldAvatar !== avatarFileId) await deleteFileAsset(oldAvatar);
     await audit({ actorId: user.id, action: "profile.update", entity: "User", entityId: user.id, ipAddress: ip });
     revalidatePath("/cabinet", "layout");
     return { ok: true, message: "Профиль сохранён" };
   },
 );
+
+export const uploadAvatar = userAction({ schema: z.object({ file: z.instanceof(File, { error: "Файл не выбран" }) }) }, async (d, { user, ip }) => {
+  const limit = await rateLimit(`avatar:${user.id}`, 20, 3600);
+  if (!limit.ok) throw new UserError("Слишком часто. Попробуйте через час.");
+  await replaceAvatar(user.id, d.file, { id: user.id, ip });
+  return { ok: true, message: "Фото обновлено" };
+});
+
+export const removeAvatar = userAction({ schema: z.object({}) }, async (_d, { user, ip }) => {
+  await replaceAvatar(user.id, null, { id: user.id, ip });
+  return { ok: true, message: "Фото удалено" };
+});
 
 export const resendEmailVerification = userAction({ schema: z.object({}) }, async (_d, { user }) => {
   if (user.emailVerified) return { ok: true, message: "Email уже подтверждён" };

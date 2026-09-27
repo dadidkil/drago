@@ -8,7 +8,7 @@ const tones: Record<Tone, string> = {
   fire: "bg-fire-soft text-[#8f2508]",
   water: "bg-[#e3f0fb] text-water",
   earth: "bg-[#e8f3e2] text-earth",
-  air: "bg-[#ecebff] text-air",
+  air: "bg-[#eceff3] text-air",
   success: "bg-[#e7f5ec] text-success",
   warning: "bg-[#fdf3e0] text-warning",
   danger: "bg-[#fdecea] text-danger",

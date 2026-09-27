@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Wordmark } from "@/components/site/brand";
+import { DragoMark, Wordmark } from "@/components/site/brand";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,6 +12,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <Wordmark dark />
         </Link>
         <div className="relative">
+          <DragoMark className="mb-8 size-40 shadow-[0_0_80px_rgb(255_106_61/0.3)]" title="" />
           <p className="font-display text-4xl leading-tight font-bold">
             Личный кабинет
             <br />

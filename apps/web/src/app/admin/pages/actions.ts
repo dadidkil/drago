@@ -68,19 +68,11 @@ export const saveTeamMember = userAction(
       bio: zf.optStr(1000),
       sortOrder: zf.optInt(0, 1000),
       isPublished: zf.bool(),
-      photo: zf.file(),
-      removePhoto: zf.bool(),
     }),
   },
   async (d, { user, ip }) => {
-    const before = d.id ? await db.teamMember.findUnique({ where: { id: d.id } }) : null;
-    let photoFileId = before?.photoFileId ?? null;
-    const old = photoFileId;
-    if (d.photo && d.photo.size > 0) photoFileId = (await storeUpload(d.photo, { kind: "image", visibility: "PUBLIC", uploadedById: user.id })).id;
-    else if (d.removePhoto) photoFileId = null;
-    const data = { fullName: d.fullName, position: d.position, bio: d.bio ?? null, sortOrder: d.sortOrder ?? 0, isPublished: d.isPublished, photoFileId };
+    const data = { fullName: d.fullName, position: d.position, bio: d.bio ?? null, sortOrder: d.sortOrder ?? 0, isPublished: d.isPublished };
     const m = d.id ? await db.teamMember.update({ where: { id: d.id }, data }) : await db.teamMember.create({ data });
-    if (old && old !== photoFileId) await deleteFileAsset(old);
     await audit({ actorId: user.id, action: d.id ? "team.update" : "team.create", entity: "TeamMember", entityId: m.id, ipAddress: ip });
     refresh();
     return { ok: true, message: "Сохранено" };
@@ -93,6 +85,31 @@ export const deleteTeamMember = userAction({ permission: P, schema: z.object({ i
   await audit({ actorId: user.id, action: "team.delete", entity: "TeamMember", entityId: d.id, ipAddress: ip });
   refresh();
   return { ok: true };
+});
+
+/** Фото карточки командного состава: кадрирование 4:5 в браузере, на сервере — 800×1000 WebP без метаданных. */
+export const setTeamPhoto = userAction(
+  { permission: P, schema: z.object({ id: zf.id(), file: z.instanceof(File, { error: "Файл не выбран" }) }) },
+  async (d, { user, ip }) => {
+    const m = await db.teamMember.findUnique({ where: { id: d.id } });
+    if (!m) throw new UserError("Карточка не найдена");
+    const asset = await storeUpload(d.file, { kind: "image", visibility: "PUBLIC", uploadedById: user.id, fit: { width: 800, height: 1000 } });
+    await db.teamMember.update({ where: { id: d.id }, data: { photoFileId: asset.id } });
+    if (m.photoFileId) await deleteFileAsset(m.photoFileId).catch(() => undefined);
+    await audit({ actorId: user.id, action: "team.photo", entity: "TeamMember", entityId: d.id, ipAddress: ip });
+    refresh();
+    return { ok: true, message: "Фото обновлено" };
+  },
+);
+
+export const removeTeamPhoto = userAction({ permission: P, schema: z.object({ id: zf.id() }) }, async (d, { user, ip }) => {
+  const m = await db.teamMember.findUnique({ where: { id: d.id } });
+  if (!m?.photoFileId) return { ok: true };
+  await db.teamMember.update({ where: { id: d.id }, data: { photoFileId: null } });
+  await deleteFileAsset(m.photoFileId).catch(() => undefined);
+  await audit({ actorId: user.id, action: "team.photo_removed", entity: "TeamMember", entityId: d.id, ipAddress: ip });
+  refresh();
+  return { ok: true, message: "Фото удалено" };
 });
 
 // ── Проекты ──

@@ -4,8 +4,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@drago/database";
 import { USER_STATUS_LABELS, canManageLevel, formatDateTime, fullName } from "@drago/shared";
-import { Badge, Card, PageHeader } from "@/components/ui/misc";
+import { ImageCropUpload } from "@/components/ui/image-crop-upload";
+import { Avatar, Badge, Card, PageHeader } from "@/components/ui/misc";
 import { requireAdmin } from "@/lib/auth/current-user";
+import { fileUrl } from "@/lib/uploads";
+import { removeUserAvatar, setUserAvatar } from "../actions";
 import { DeleteUserForm, EditUserForm, UserSecurityActions } from "../user-forms";
 
 export const metadata: Metadata = { title: "Пользователь" };
@@ -60,6 +63,20 @@ export default async function UserPage({ params, searchParams }: { params: Promi
           )}
         </Card>
         <aside className="space-y-4 self-start">
+          <Card className="text-center">
+            {manageable && user.profile ? (
+              <ImageCropUpload
+                action={setUserAvatar}
+                fields={{ userId: user.id }}
+                removeAction={user.profile.avatarFileId ? removeUserAvatar : undefined}
+                removeConfirm="Удалить фото профиля?"
+                preview={<Avatar src={user.profile.avatarFileId ? fileUrl(user.profile.avatarFileId) : null} name={name} size={96} className="mx-auto" />}
+                hint="Фото видят только участники отряда"
+              />
+            ) : (
+              <Avatar src={user.profile?.avatarFileId ? fileUrl(user.profile.avatarFileId) : null} name={name} size={96} className="mx-auto" />
+            )}
+          </Card>
           <Card>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between gap-2">

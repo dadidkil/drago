@@ -1,29 +1,33 @@
 import { cn } from "@/components/ui/cn";
 
 /**
- * Знак «Драго»: четыре языка-стихии (огонь, вода, земля, воздух), закрученные вокруг
- * вертикального «драконьего зрачка». Цвета стихий — из дизайн-токенов.
+ * Логотип отряда «Драго» (МГПУ): круглый значок — четыре стихии вокруг дракона.
+ * Файлы: public/brand/drago-logo-{128,256,512}.webp (исходник обработан скриптом: круг вырезан, фон вне круга прозрачный).
+ * Обычный <img>: логотип маленький и статичный, оптимизатор изображений ему не нужен.
  */
-export function DragoMark({ className, title = "ТОП «Драго»" }: { className?: string; title?: string }) {
-  const petal = "M32 5 C41 13 42 23 33.5 30 C31 22 26 14 32 5 Z";
+export function DragoMark({ className, title = "ТОП «Драго»", priority = false }: { className?: string; title?: string; priority?: boolean }) {
   return (
-    <svg viewBox="0 0 64 64" className={cn("shrink-0", className)} role="img" aria-label={title}>
-      <g>
-        <path d={petal} fill="#ff6a3d" />
-        <path d={petal} fill="#4fb3ff" transform="rotate(90 32 32)" />
-        <path d={petal} fill="#8fd16a" transform="rotate(180 32 32)" />
-        <path d={petal} fill="#a9a4ff" transform="rotate(270 32 32)" />
-      </g>
-      <circle cx="32" cy="32" r="9" fill="#15131a" />
-      <ellipse cx="32" cy="32" rx="2.4" ry="7" fill="#ff6a3d" />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/brand/drago-logo-256.webp"
+      srcSet="/brand/drago-logo-128.webp 128w, /brand/drago-logo-256.webp 256w, /brand/drago-logo-512.webp 512w"
+      sizes="(min-width: 1024px) 24rem, 3rem"
+      alt={title}
+      aria-hidden={title ? undefined : true}
+      width={256}
+      height={256}
+      decoding="async"
+      fetchPriority={priority ? "high" : undefined}
+      className={cn("shrink-0 rounded-full select-none", className)}
+      draggable={false}
+    />
   );
 }
 
 export function Wordmark({ className, dark = false }: { className?: string; dark?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <DragoMark className="size-9" />
+      <DragoMark className="size-10" title="" />
       <span className="flex flex-col leading-none">
         <span className={cn("font-display text-[1.05rem] font-bold tracking-wide", dark ? "text-paper" : "text-ink")}>ДРАГО</span>
         <span className={cn("mt-0.5 text-[0.62rem] font-semibold tracking-[0.18em] uppercase", dark ? "text-muted-dark" : "text-muted")}>

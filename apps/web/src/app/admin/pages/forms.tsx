@@ -58,18 +58,9 @@ export function TeamMemberForm({ m }: { m?: { id: string; fullName: string; posi
       <Field label="Пара слов" name="bio">
         <Textarea name="bio" defaultValue={m?.bio ?? ""} rows={2} maxLength={1000} />
       </Field>
-      <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
-        <Field label="Фото" name="photo" hint="Публичное фото — только с согласия человека (и родителей, если ему нет 18)">
-          <Input name="photo" type="file" accept="image/*" className="py-2 text-sm" />
-        </Field>
-        {m?.photoFileId && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/media/${m.photoFileId}`} alt="" className="size-16 rounded-xl object-cover" />
-        )}
-      </div>
+      {!m && <p className="text-xs text-muted">Фото можно добавить после сохранения карточки.</p>}
       <div className="flex flex-wrap items-center gap-5">
         <Checkbox name="isPublished" defaultChecked={m?.isPublished ?? true} label="Показывать на сайте" />
-        {m?.photoFileId && <Checkbox name="removePhoto" label="Удалить фото" />}
         <SubmitButton size="sm">{m ? "Сохранить" : "Добавить"}</SubmitButton>
       </div>
     </ActionForm>

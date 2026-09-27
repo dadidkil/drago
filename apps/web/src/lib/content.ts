@@ -8,7 +8,7 @@ import { getSettings, publicUpcomingEvents } from "@drago/core";
  * безопасные для публикации (никаких email/телефонов бойцов, внутренних пользователей).
  */
 
-export const getSiteSettings = cache(() => getSettings(["site.general", "site.contacts", "integrations"]));
+export const getSiteSettings = cache(() => getSettings(["site.general", "site.contacts", "site.media", "integrations"]));
 
 export const getPublishedPage = cache((slug: string) => db.page.findFirst({ where: { slug, isPublished: true } }));
 

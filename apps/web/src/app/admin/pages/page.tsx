@@ -19,6 +19,7 @@ export default async function PagesHub() {
   ]);
   const sections = [
     { href: "/admin/pages/contacts", title: "Главная и контакты", text: "Заголовок, слоган, набор, соцсети, контакты" },
+    { href: "/admin/pages/media", title: "Фото сайта", text: "Фон главного экрана и фото на страницах" },
     { href: "/admin/pages/team", title: "Командный состав", text: `Карточек: ${team}` },
     { href: "/admin/pages/projects", title: "Проекты", text: `Проектов: ${projects}` },
     { href: "/admin/pages/achievements", title: "Достижения", text: `Записей: ${achievements}` },
