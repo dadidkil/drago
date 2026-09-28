@@ -10,7 +10,7 @@ export interface TelegramSendResult {
 export async function sendTelegramMessage(
   chatId: bigint | number | string,
   text: string,
-  opts: { buttonUrl?: string; buttonText?: string } = {},
+  opts: { buttonUrl?: string; buttonText?: string; keyboard?: { text: string; callback_data?: string; url?: string }[][] } = {},
 ): Promise<TelegramSendResult> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return { ok: false, errorCode: 0, description: "TELEGRAM_BOT_TOKEN не задан" };
@@ -20,9 +20,9 @@ export async function sendTelegramMessage(
     parse_mode: "HTML",
     link_preview_options: { is_disabled: true },
   };
-  if (opts.buttonUrl && /^https:\/\//.test(opts.buttonUrl)) {
-    body.reply_markup = { inline_keyboard: [[{ text: opts.buttonText ?? "Открыть", url: opts.buttonUrl }]] };
-  }
+  const rows: { text: string; callback_data?: string; url?: string }[][] = [...(opts.keyboard ?? [])];
+  if (opts.buttonUrl && /^https:\/\//.test(opts.buttonUrl)) rows.push([{ text: opts.buttonText ?? "Открыть", url: opts.buttonUrl }]);
+  if (rows.length) body.reply_markup = { inline_keyboard: rows };
   const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

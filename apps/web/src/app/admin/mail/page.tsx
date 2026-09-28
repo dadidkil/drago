@@ -69,7 +69,7 @@ export default async function AdminMail({ searchParams }: { searchParams: Promis
       )}
 
       <h2 className="mt-8 mb-3 text-lg font-semibold">Ящики ({accounts.length})</h2>
-      <Table headers={["Адрес", "Владелец", "Статус", "Пароль", "Действия"]}>
+      <Table headers={["Адрес", "Владелец", "Статус", "Доступ", "Действия"]}>
         {accounts.map((a) => (
           <tr key={a.id}>
             <Td className="font-mono">{a.address}</Td>
@@ -83,12 +83,12 @@ export default async function AdminMail({ searchParams }: { searchParams: Promis
               {a.lastError && <p className="mt-1 max-w-xs text-xs text-danger">{a.lastError}</p>}
             </Td>
             <Td className="text-xs text-muted">
-              {a.pendingSecretEnc ? "ожидает показа владельцу" : a.lastPasswordResetAt ? `выпущен ${formatDateTime(a.lastPasswordResetAt)}` : "—"}
+              {a.passwordEnc ? "вход из кабинета" : a.lastPasswordResetAt ? `выпущен ${formatDateTime(a.lastPasswordResetAt)}` : "—"}
             </Td>
             <Td>
               <div className="flex flex-wrap gap-1">
                 {provisioner.automated && (
-                  <InlineAction action={resetMailboxPassword} fields={{ id: a.id }} label="Новый временный пароль" confirm="Выпустить новый временный пароль? Старый перестанет работать." />
+                  <InlineAction action={resetMailboxPassword} fields={{ id: a.id }} label="Перевыпустить доступ" confirm="Перевыпустить служебный пароль ящика? Почтовые программы, настроенные вручную, перестанут входить." />
                 )}
                 {a.status === "ACTIVE" || a.status === "ERROR" ? (
                   <InlineAction action={setMailboxStatus} fields={{ id: a.id, status: "DISABLED" }} label="Отключить" confirm="Отключить ящик?" />

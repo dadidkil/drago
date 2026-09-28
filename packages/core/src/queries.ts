@@ -1,5 +1,6 @@
 import { db } from "@drago/database";
 import { effectiveLevel } from "./permissions";
+import { myOpenTasks } from "./tasks";
 
 /** Общие запросы «что видит пользователь» — используются кабинетом и ботами. */
 
@@ -32,12 +33,9 @@ export async function upcomingEventsForUser(user: { id: string; level: number },
   });
 }
 
+/** Открытые задачи пользователя вместе с его статусом (myStatus). */
 export async function openTasksForUser(userId: string, take = 20) {
-  return db.task.findMany({
-    where: { assignees: { some: { userId } }, status: { in: ["NEW", "IN_PROGRESS"] } },
-    orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
-    take,
-  });
+  return myOpenTasks(userId, take);
 }
 
 export function visibleDocumentsWhere(level: number) {

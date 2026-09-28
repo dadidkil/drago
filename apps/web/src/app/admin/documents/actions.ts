@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@drago/database";
-import { audit } from "@drago/core";
+import { audit, notifyAudience } from "@drago/core";
 import { slugify } from "@drago/shared";
 import { userAction, UserError, zf } from "@/lib/actions";
 import { uniqueSlug } from "@/lib/admin";
@@ -18,6 +18,7 @@ export const uploadDocument = userAction(
       categoryId: zf.id(),
       minRoleLevel: z.preprocess((v) => (v === "" ? undefined : v), zf.int(10, 100).optional()),
       file: z.instanceof(File, { message: "Выберите файл" }),
+      notify: zf.bool(),
     }),
   },
   async (d, { user, ip }) => {
@@ -28,8 +29,18 @@ export const uploadDocument = userAction(
       data: { title: d.title, description: d.description, categoryId: category.id, fileId: asset.id, minRoleLevel: d.minRoleLevel ?? null, uploadedById: user.id },
     });
     await audit({ actorId: user.id, action: "document.upload", entity: "Document", entityId: doc.id, ipAddress: ip, metadata: { category: category.slug, mime: asset.mimeType, size: asset.size } });
+    if (d.notify) {
+      // Уведомляем только тех, кому документ доступен (уровень — строже из категории и документа).
+      await notifyAudience(Math.max(category.minRoleLevel, d.minRoleLevel ?? 0), {
+        type: "DOCUMENT_NEW",
+        title: `Новый документ: ${d.title}`,
+        body: `Раздел «${category.name}»${d.description ? `. ${d.description.slice(0, 200)}` : ""}`,
+        url: "/cabinet/documents",
+        excludeUserId: user.id,
+      });
+    }
     revalidatePath("/admin/documents");
-    return { ok: true, message: "Документ загружен" };
+    return { ok: true, message: d.notify ? "Документ загружен, отряд уведомлён" : "Документ загружен" };
   },
 );
 

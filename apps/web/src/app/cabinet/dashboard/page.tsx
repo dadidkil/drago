@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Send, ShieldAlert } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronRight, ClipboardCheck, ListTodo, Mail, PartyPopper, SearchCheck, Send, ShieldAlert } from "lucide-react";
 import { db } from "@drago/database";
-import { announcementsForLevel, documentsForLevel, openTasksForUser, upcomingEventsForUser } from "@drago/core";
+import { agendaCounts, agendaFor, announcementsForLevel, documentsForLevel, openTasksForUser, upcomingEventsForUser, type AgendaItem, type AgendaKind } from "@drago/core";
 import { moscowParts } from "@drago/shared";
-import { AnnouncementCard, DocumentRow, DueLabel, EventRow, TaskStatusBadge } from "@/components/cabinet/items";
-import { Card, EmptyState } from "@/components/ui/misc";
+import { AnnouncementCard, AssigneeBadge, DocumentRow, DueLabel, EventRow } from "@/components/cabinet/items";
+import { Badge, Card, EmptyState } from "@/components/ui/misc";
 import { requireUser } from "@/lib/auth/current-user";
 
 export const metadata: Metadata = { title: "Главная" };
@@ -18,7 +19,66 @@ function greeting(): string {
   return "Добрый вечер";
 }
 
-function Block({ title, href, children }: { title: string; href: string; children: React.ReactNode }) {
+const AGENDA_ICON: Record<AgendaKind, ReactNode> = {
+  survey: <ClipboardCheck className="size-5" aria-hidden />,
+  task: <ListTodo className="size-5" aria-hidden />,
+  review: <SearchCheck className="size-5" aria-hidden />,
+  event: <CalendarDays className="size-5" aria-hidden />,
+  mail: <Mail className="size-5" aria-hidden />,
+};
+
+const AGENDA_TINT: Record<AgendaKind, string> = {
+  survey: "bg-[#fdf3e0] text-warning",
+  task: "bg-fire-soft text-fire",
+  review: "bg-[#e3f0fb] text-water",
+  event: "bg-[#e7f5ec] text-success",
+  mail: "bg-paper-2 text-ink",
+};
+
+/** «Нужно сделать»: всё, что ждёт от человека действия, одним списком — срочное сверху. */
+function Agenda({ items }: { items: AgendaItem[] }) {
+  return (
+    <section aria-labelledby="agenda-title">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="agenda-title" className="text-lg font-semibold">
+          Нужно сделать
+        </h2>
+        {items.length > 0 && <p className="text-sm text-muted">{agendaCounts(items)}</p>}
+      </div>
+      {items.length === 0 ? (
+        <Card className="flex items-center gap-4">
+          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#e7f5ec] text-success">
+            <PartyPopper className="size-5" aria-hidden />
+          </span>
+          <div>
+            <p className="font-semibold">Все дела сделаны</p>
+            <p className="mt-0.5 text-sm text-muted">Новые задачи, формы и приглашения появятся здесь и придут в Telegram.</p>
+          </div>
+        </Card>
+      ) : (
+        <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white">
+          {items.map((i) => (
+            <li key={i.key}>
+              <Link href={i.url} className="flex items-center gap-3 p-4 hover:bg-paper">
+                <span className={`inline-flex size-10 shrink-0 items-center justify-center rounded-xl ${AGENDA_TINT[i.kind]}`}>{AGENDA_ICON[i.kind]}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{i.title}</span>
+                    {i.urgent && <Badge tone="danger">срочно</Badge>}
+                  </span>
+                  <span className="mt-0.5 block text-sm text-muted">{i.detail}</span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function Block({ title, href, children }: { title: string; href: string; children: ReactNode }) {
   return (
     <section aria-label={title}>
       <div className="mb-3 flex items-center justify-between">
@@ -35,7 +95,8 @@ function Block({ title, href, children }: { title: string; href: string; childre
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
   const user = await requireUser();
   const { welcome } = await searchParams;
-  const [events, announcements, tasks, documents, telegram] = await Promise.all([
+  const [agenda, events, announcements, tasks, documents, telegram] = await Promise.all([
+    agendaFor({ id: user.id, level: user.level, canManage: user.can("tasks.manage") }),
     upcomingEventsForUser(user, 4),
     announcementsForLevel(user.level, 3),
     openTasksForUser(user.id, 5),
@@ -87,6 +148,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
+      <Agenda items={agenda} />
+
       <div className="grid gap-8 lg:grid-cols-2">
         <Block title="Ближайшие мероприятия" href="/cabinet/events">
           {events.length === 0 ? (
@@ -114,7 +177,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         <DueLabel dueAt={t.dueAt} />
                       </p>
                     </div>
-                    <TaskStatusBadge status={t.status} />
+                    <AssigneeBadge status={t.myStatus} />
                   </Link>
                 </li>
               ))}

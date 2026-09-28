@@ -1,4 +1,4 @@
-import { db, type NotificationChannel, type NotificationType } from "@drago/database";
+import { db, type NotificationChannel, type NotificationType, type Prisma } from "@drago/database";
 import { NOTIFICATION_META, type ExternalChannel, type PermissionKey } from "@drago/shared";
 import { findUsersWithPermission } from "./permissions";
 import { createLogger } from "./logger";
@@ -16,6 +16,22 @@ export interface NotifyInput {
   onlyChannels?: ExternalChannel[];
   /** Не уведомлять этого пользователя (обычно — автора действия). */
   excludeUserId?: string;
+  /**
+   * Кнопки действий в Telegram (строки кнопок): `data` — callback для бота («В работу», «Принять», «Иду»),
+   * `url` — ссылка. Кнопка «Открыть» по `url` уведомления добавляется автоматически.
+   */
+  actions?: NotificationAction[][];
+  /**
+   * Только во внешние каналы (утренняя сводка): кому некуда доставить — ничего не создаём,
+   * в кабинете уведомление сразу помечено прочитанным, чтобы не дублировать главную.
+   */
+  externalOnly?: boolean;
+}
+
+export interface NotificationAction {
+  text: string;
+  data?: string;
+  url?: string;
 }
 
 /**
@@ -40,7 +56,7 @@ export async function notify(input: NotifyInput): Promise<number> {
   });
 
   const meta = NOTIFICATION_META[input.type];
-  const ops = users.map((u) => {
+  const ops = users.flatMap((u) => {
     const pref = (ch: ExternalChannel) => {
       if (input.onlyChannels && !input.onlyChannels.includes(ch)) return false;
       const p = u.notificationPrefs.find((x) => x.channel === ch);
@@ -50,14 +66,17 @@ export async function notify(input: NotifyInput): Promise<number> {
     if (u.telegramAccount && !u.telegramAccount.blockedBot && pref("TELEGRAM")) channels.push("TELEGRAM");
     if (u.vkAccount?.canMessage && pref("VK")) channels.push("VK");
     if (u.emailVerifiedAt && pref("EMAIL")) channels.push("EMAIL");
+    if (input.externalOnly && channels.length === 0) return [];
 
     return db.notification.create({
       data: {
         userId: u.id,
+        readAt: input.externalOnly ? new Date() : undefined,
         type: input.type,
         title: input.title.slice(0, 200),
         body: input.body.slice(0, 2000),
         url: input.url,
+        actions: input.actions ? (input.actions as unknown as Prisma.InputJsonValue) : undefined,
         deliveries: { create: channels.map((channel) => ({ channel })) },
       },
       select: { id: true },

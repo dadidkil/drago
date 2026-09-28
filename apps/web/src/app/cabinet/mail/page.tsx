@@ -1,78 +1,36 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Mail } from "lucide-react";
 import { db } from "@drago/database";
 import { getSetting } from "@drago/core";
-import { MAILBOX_STATUS_LABELS, formatDateTime } from "@drago/shared";
-import { buttonClass } from "@/components/ui/button";
+import { MAILBOX_STATUS_LABELS } from "@drago/shared";
 import { Badge, Card, EmptyState, PageHeader } from "@/components/ui/misc";
 import { requireUser } from "@/lib/auth/current-user";
-import { RevealPassword } from "./reveal";
 
 export const metadata: Metadata = { title: "Почта @dragotop.ru" };
 
+/** Почта открывается прямо в кабинете: активный ящик — сразу во «Входящие», без пароля. */
 export default async function MailPage() {
   const user = await requireUser();
   const [account, mail] = await Promise.all([db.emailAccount.findUnique({ where: { userId: user.id } }), getSetting("mail")]);
-  const hasPending = Boolean(account?.pendingSecretEnc && account.pendingSecretExpiresAt && account.pendingSecretExpiresAt > new Date());
+  if (account?.status === "ACTIVE") redirect("/cabinet/mail/inbox");
 
   return (
     <>
       <PageHeader title={`Почта @${mail.domain}`} description="Корпоративный ящик бойца для переписки от имени отряда." />
       {!account ? (
         <EmptyState title="Корпоративный ящик ещё не создан" icon={<Mail className="size-8" />}>
-          Ящик вида имя.фамилия@{mail.domain} создаёт командный состав. Если он нужен — напишите командиру.
+          Ящик вида имя.фамилия@{mail.domain} создаёт командный состав. Как только он появится, почта откроется здесь — без паролей.
         </EmptyState>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <p className="text-sm text-muted">Ваш адрес</p>
-            <p className="mt-1 font-display text-xl font-semibold break-all">{account.address}</p>
-            <div className="mt-3">
-              <Badge tone={account.status === "ACTIVE" ? "success" : account.status === "ERROR" ? "danger" : "neutral"}>
-                {MAILBOX_STATUS_LABELS[account.status]}
-              </Badge>
-            </div>
-            {account.status === "ACTIVE" && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Link href="/cabinet/mail/inbox" className={buttonClass("primary", "md")}>
-                  Открыть входящие
-                </Link>
-                {mail.webmailUrl && (
-                  <a href={mail.webmailUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("secondary", "md")}>
-                    Внешняя веб-почта
-                  </a>
-                )}
-              </div>
-            )}
-            {hasPending && (
-              <div className="mt-6 border-t border-line pt-5">
-                <p className="mb-1 font-semibold">Временный пароль готов</p>
-                <p className="mb-4 text-sm text-muted">
-                  Действует до {formatDateTime(account.pendingSecretExpiresAt!)}. После первого входа смените его в настройках веб-почты.
-                </p>
-                <RevealPassword />
-              </div>
-            )}
-            {account.lastPasswordResetAt && !hasPending && (
-              <p className="mt-5 text-xs text-muted">Пароль последний раз выпускался {formatDateTime(account.lastPasswordResetAt)}.</p>
-            )}
-          </Card>
-          <Card>
-            <h2 className="mb-3 font-semibold">Настройки для почтовых программ</h2>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted">Логин</dt>
-              <dd className="font-mono break-all">{account.address}</dd>
-              <dt className="text-muted">IMAP</dt>
-              <dd className="font-mono">{mail.imapHost}:993 (SSL/TLS)</dd>
-              <dt className="text-muted">SMTP</dt>
-              <dd className="font-mono">{mail.smtpHost}:465 (SSL/TLS) или :587 (STARTTLS)</dd>
-            </dl>
-            <p className="mt-4 text-sm text-muted">
-              Используйте корпоративную почту только для дел отряда. Не пересылайте на неё и с неё документы с персональными данными без необходимости.
-            </p>
-          </Card>
-        </div>
+        <Card className="max-w-lg">
+          <p className="text-sm text-muted">Ваш адрес</p>
+          <p className="mt-1 font-display text-xl font-semibold break-all">{account.address}</p>
+          <div className="mt-3">
+            <Badge tone={account.status === "ERROR" ? "danger" : "neutral"}>{MAILBOX_STATUS_LABELS[account.status]}</Badge>
+          </div>
+          <p className="mt-4 text-sm text-muted">Ящик пока не готов. Как только командный состав его включит, придёт уведомление.</p>
+        </Card>
       )}
     </>
   );

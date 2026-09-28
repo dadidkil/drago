@@ -10,7 +10,6 @@ import {
   FileText,
   LayoutDashboard,
   ListTodo,
-  Inbox,
   Mail,
   Megaphone,
   Shield,
@@ -19,7 +18,7 @@ import {
   Users,
 } from "lucide-react";
 import { db } from "@drago/database";
-import { blockingSurvey, surveysForUser } from "@drago/core";
+import { blockingSurvey, submissionsToReview, surveysForUser } from "@drago/core";
 import { formatDateTime, fullName } from "@drago/shared";
 import { AppShell, type NavGroup } from "@/components/ui/shell";
 import { SurveyGate, type PendingSurvey } from "@/components/cabinet/survey-gate";
@@ -31,9 +30,13 @@ export const metadata: Metadata = { title: { default: "Личный кабине
 
 export default async function CabinetLayout({ children }: { children: ReactNode }) {
   const user = await requireUser("/cabinet");
-  const [unread, surveys] = await Promise.all([
+  const [unread, surveys, taskTodo, toReview, mailbox] = await Promise.all([
     db.notification.count({ where: { userId: user.id, readAt: null } }),
     surveysForUser({ id: user.id, roleLevel: user.level }),
+    // Задачи, где от меня ждут действия: новые и возвращённые на доработку
+    db.taskAssignee.count({ where: { userId: user.id, status: { in: ["ASSIGNED", "RETURNED"] }, task: { status: { not: "CANCELLED" } } } }),
+    submissionsToReview({ id: user.id, level: user.level, canManage: user.can("tasks.manage") }, 100),
+    db.emailAccount.findUnique({ where: { userId: user.id }, select: { unreadCount: true, status: true } }),
   ]);
   const toPending = (s: (typeof surveys)[number]): PendingSurvey => ({
     id: s.survey.id,
@@ -49,14 +52,15 @@ export default async function CabinetLayout({ children }: { children: ReactNode 
   const groups: NavGroup[] = [
     {
       items: [
-        { href: "/cabinet/dashboard", label: "Главная", icon: <LayoutDashboard /> },
+        { href: "/cabinet/dashboard", label: "Мои дела", icon: <LayoutDashboard /> },
         { href: "/cabinet/notifications", label: "Уведомления", icon: <Bell />, badge: unread },
         { href: "/cabinet/announcements", label: "Объявления", icon: <Megaphone /> },
-        { href: "/cabinet/tasks", label: "Задачи", icon: <ListTodo /> },
+        { href: "/cabinet/tasks", label: "Задачи", icon: <ListTodo />, badge: taskTodo + toReview.length },
         { href: "/cabinet/surveys", label: "Формы", icon: <ClipboardCheck />, badge: open.length },
         { href: "/cabinet/events", label: "Мероприятия", icon: <CalendarDays /> },
         { href: "/cabinet/calendar", label: "Календарь", icon: <CalendarRange /> },
         { href: "/cabinet/documents", label: "Документы", icon: <FileText /> },
+        { href: "/cabinet/mail", label: "Почта", icon: <Mail />, badge: mailbox?.status === "ACTIVE" ? mailbox.unreadCount : 0 },
         { href: "/cabinet/team", label: "Отряд", icon: <Users /> },
         { href: "/cabinet/knowledge", label: "База знаний", icon: <BookOpen /> },
       ],
@@ -65,8 +69,6 @@ export default async function CabinetLayout({ children }: { children: ReactNode 
       title: "Аккаунт",
       items: [
         { href: "/cabinet/profile", label: "Профиль", icon: <User /> },
-        { href: "/cabinet/mail/inbox", label: "Входящие", icon: <Inbox /> },
-        { href: "/cabinet/mail", label: "Почта @dragotop.ru", icon: <Mail /> },
         { href: "/cabinet/security", label: "Безопасность", icon: <Shield /> },
         { href: "/cabinet/help", label: "Помощь", icon: <CircleHelp /> },
       ],

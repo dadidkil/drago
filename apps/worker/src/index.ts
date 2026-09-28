@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { db } from "@drago/database";
 import { createLogger, surveyDispatchJob, surveyRetentionCleanup } from "@drago/core";
 import { processDeliveries } from "./deliveries";
-import { cleanup, eventReminders, taskDeadlineReminders } from "./jobs";
+import { cleanup, eventReminders, mailPoll, morningDigest, taskDeadlineReminders } from "./jobs";
 
 const log = createLogger("worker");
 const HEARTBEAT = process.env.WORKER_HEARTBEAT_FILE ?? "/tmp/worker-heartbeat";
@@ -37,7 +37,10 @@ async function main() {
       await taskDeadlineReminders();
       await eventReminders();
       await surveyDispatchJob();
+      await morningDigest();
     }),
+    // Почта: новые письма → уведомления и счётчик непрочитанных. Раз в 3 минуты — щадяще для IMAP.
+    every("mail", 3 * 60_000, mailPoll),
     every("cleanup", 60 * 60_000, async () => {
       await cleanup();
       await surveyRetentionCleanup();

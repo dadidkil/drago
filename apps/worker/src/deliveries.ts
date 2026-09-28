@@ -62,9 +62,17 @@ async function deliver(id: string): Promise<void> {
     switch (d.channel) {
       case "TELEGRAM": {
         if (!user.telegramAccount || user.telegramAccount.blockedBot) throw new SkipDelivery("telegram not linked");
+        // Кнопки действий (взять задачу, принять сдачу, «Иду» на мероприятие) — бот обработает их callback.
+        const actions = Array.isArray(n.actions) ? (n.actions as { text: string; data?: string; url?: string }[][]) : [];
+        const keyboard = actions.map((row) =>
+          row
+            .filter((b) => b.data || (b.url && /^https:\/\//.test(b.url)))
+            .map((b) => (b.data ? { text: b.text, callback_data: b.data.slice(0, 64) } : { text: b.text, url: b.url! })),
+        );
         const res = await sendTelegramMessage(user.telegramAccount.telegramUserId, `<b>${escapeHtml(n.title)}</b>\n${escapeHtml(n.body)}`, {
           buttonUrl: link,
           buttonText: "Открыть в кабинете",
+          keyboard: keyboard.filter((r) => r.length),
         });
         if (!res.ok) {
           if (res.errorCode === 403) {

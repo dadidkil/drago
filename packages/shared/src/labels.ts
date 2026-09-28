@@ -1,8 +1,18 @@
 export const TASK_STATUS_LABELS = {
   NEW: "Новая",
   IN_PROGRESS: "В работе",
+  REVIEW: "На проверке",
   DONE: "Выполнена",
   CANCELLED: "Отменена",
+} as const;
+
+/** Статус задачи у исполнителя: получил → в работе → сдал → проверил поставивший → принята (выполнено). */
+export const ASSIGNEE_STATUS_LABELS = {
+  ASSIGNED: "Новая",
+  IN_PROGRESS: "В работе",
+  SUBMITTED: "Сдана, ждёт проверки",
+  RETURNED: "На доработке",
+  ACCEPTED: "Принята",
 } as const;
 
 export const EVENT_TYPE_LABELS = {

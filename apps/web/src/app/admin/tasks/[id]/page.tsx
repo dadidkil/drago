@@ -32,7 +32,7 @@ export default async function EditTask({ params, searchParams }: { params: Promi
         actions={
           <>
             <Link href={`/cabinet/tasks/${task.id}`} className="self-center text-sm font-semibold text-fire">
-              Комментарии ({task._count.comments}) →
+              Проверка сдачи и лента ({task._count.comments}) →
             </Link>
             <InlineAction action={deleteTask} fields={{ id: task.id }} label="Удалить" variant="danger" confirm="Удалить задачу?" />
           </>

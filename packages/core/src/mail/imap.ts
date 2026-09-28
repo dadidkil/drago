@@ -179,3 +179,58 @@ export async function checkCredentials(creds: MailboxCreds): Promise<boolean> {
     return false;
   }
 }
+
+/** Сводка по «Входящим» без загрузки писем: всего, непрочитанных и UIDNEXT (для поиска новых писем). */
+export async function inboxStatus(creds: MailboxCreds): Promise<{ messages: number; unseen: number; uidNext: number }> {
+  return withImap(creds, async (client) => {
+    const st = await client.status("INBOX", { messages: true, unseen: true, uidNext: true });
+    return { messages: st.messages ?? 0, unseen: st.unseen ?? 0, uidNext: st.uidNext ?? 0 };
+  });
+}
+
+/** Заголовки писем с UID ≥ fromUid (новые с прошлой проверки), не больше limit. Не помечает прочитанными. */
+export async function headersSince(creds: MailboxCreds, fromUid: number, limit = 5): Promise<MessageHeader[]> {
+  return withImap(creds, async (client) => {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const out: MessageHeader[] = [];
+      for await (const msg of client.fetch(`${fromUid}:*`, { uid: true, envelope: true, flags: true }, { uid: true })) {
+        if (msg.uid < fromUid) continue; // «N:*» в IMAP включает последнее письмо, даже если его UID меньше N
+        const sender = addr(msg.envelope?.from);
+        out.push({
+          uid: msg.uid,
+          from: sender.label,
+          fromAddress: sender.email,
+          subject: msg.envelope?.subject?.trim() || "(без темы)",
+          date: (msg.envelope?.date ?? new Date()).toISOString(),
+          seen: msg.flags?.has("\\Seen") ?? false,
+          hasAttachments: false,
+        });
+      }
+      return out.slice(-limit).reverse();
+    } finally {
+      lock.release();
+    }
+  });
+}
+
+/** Вложение письма по номеру — для скачивания из кабинета. */
+export async function readAttachment(
+  creds: MailboxCreds,
+  uid: number,
+  index: number,
+): Promise<{ filename: string; contentType: string; content: Buffer } | null> {
+  return withImap(creds, async (client) => {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const msg = await client.fetchOne(String(uid), { uid: true, source: true }, { uid: true });
+      if (!msg || !msg.source) return null;
+      const parsed = await simpleParser(msg.source);
+      const a = parsed.attachments[index];
+      if (!a) return null;
+      return { filename: a.filename ?? `attachment-${index + 1}`, contentType: a.contentType || "application/octet-stream", content: a.content };
+    } finally {
+      lock.release();
+    }
+  });
+}

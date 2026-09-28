@@ -1,8 +1,8 @@
 "use client";
 
-import { TASK_STATUS_LABELS, toMoscowInputValue } from "@drago/shared";
+import { toMoscowInputValue } from "@drago/shared";
 import { UserMultiSelect } from "@/components/admin/pickers";
-import { ActionForm, Field, FormMessage, Input, Select, SubmitButton, Textarea } from "@/components/ui/form";
+import { ActionForm, Checkbox, Field, FormMessage, Input, SubmitButton, Textarea } from "@/components/ui/form";
 import { saveTask } from "./actions";
 
 export function TaskForm({
@@ -26,17 +26,11 @@ export function TaskForm({
         <Field label="Дедлайн (МСК)" name="dueAt">
           <Input name="dueAt" type="datetime-local" defaultValue={toMoscowInputValue(task?.dueAt)} />
         </Field>
-        <Field label="Статус" name="status">
-          <Select name="status" defaultValue={task?.status ?? "NEW"}>
-            {Object.entries(TASK_STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div className="self-end pb-2">
+          <Checkbox name="cancelled" defaultChecked={task?.status === "CANCELLED"} label="Задача отменена" />
+        </div>
       </div>
-      <Field label="Исполнители" name="assignees" required hint="Новым исполнителям придёт уведомление">
+      <Field label="Исполнители" name="assignees" required hint="Новым исполнителям придёт уведомление в кабинет и Telegram с кнопками «В работу» и «Сдать». Сдачу проверяете вы.">
         <UserMultiSelect name="assignees" users={users} defaultSelected={task?.assigneeIds} />
       </Field>
       <Field label="Вложения" name="files">

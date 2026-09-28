@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Clock, FileText, MapPin, Paperclip, Pin } from "lucide-react";
 import {
+  ASSIGNEE_STATUS_LABELS,
   EVENT_TYPE_LABELS,
   PARTICIPATION_LABELS,
   TASK_STATUS_LABELS,
@@ -15,8 +16,15 @@ import { Markdown } from "@/components/ui/markdown";
 import { fileUrl } from "@/lib/uploads";
 
 export function TaskStatusBadge({ status }: { status: keyof typeof TASK_STATUS_LABELS }) {
-  const tone = status === "DONE" ? "success" : status === "IN_PROGRESS" ? "water" : status === "CANCELLED" ? "neutral" : "fire";
+  const tone = status === "DONE" ? "success" : status === "IN_PROGRESS" ? "water" : status === "REVIEW" ? "warning" : status === "CANCELLED" ? "neutral" : "fire";
   return <Badge tone={tone}>{TASK_STATUS_LABELS[status]}</Badge>;
+}
+
+const ASSIGNEE_TONE = { ASSIGNED: "fire", IN_PROGRESS: "water", SUBMITTED: "warning", RETURNED: "danger", ACCEPTED: "success" } as const;
+
+/** Статус задачи у конкретного исполнителя (моё выполнение). */
+export function AssigneeBadge({ status }: { status: keyof typeof ASSIGNEE_STATUS_LABELS }) {
+  return <Badge tone={ASSIGNEE_TONE[status]}>{ASSIGNEE_STATUS_LABELS[status]}</Badge>;
 }
 
 export function DueLabel({ dueAt, done }: { dueAt: Date | null; done?: boolean }) {

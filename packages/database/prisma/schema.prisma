@@ -70,6 +70,7 @@ model User {
   auditLogs             AuditLog[]
   teamMember            TeamMember?
   surveysCreated        Survey[]           @relation("SurveyCreator")
+  tasksReviewed         TaskAssignee[]     @relation("TaskReviewer")
   surveyCompletions     SurveyCompletion[]
   surveyResponses       SurveyResponse[]
 
@@ -223,6 +224,9 @@ model FileAsset {
   announcement   Announcement?  @relation(fields: [announcementId], references: [id], onDelete: Cascade)
   taskId         String?
   task           Task?          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  // Файл приложен к сдаче/комментарию (доступ проверяется по задаче)
+  taskCommentId  String?
+  taskComment    TaskComment?   @relation("TaskCommentFiles", fields: [taskCommentId], references: [id], onDelete: SetNull)
 
   profileAvatar  Profile?       @relation("ProfileAvatar")
   document       Document?
@@ -434,11 +438,30 @@ model EventParticipant {
   @@index([userId])
 }
 
+/** Сводный статус задачи — считается из статусов исполнителей (recomputeTaskStatus). */
 enum TaskStatus {
   NEW
   IN_PROGRESS
-  DONE
+  REVIEW // кто-то сдал, ждёт проверки
+  DONE // принята у всех исполнителей
   CANCELLED
+}
+
+/** Статус задачи у конкретного исполнителя: сдал → проверил тот, кто поставил → выполнено. */
+enum AssigneeStatus {
+  ASSIGNED // получена
+  IN_PROGRESS // в работе
+  SUBMITTED // сдана, ждёт проверки
+  RETURNED // возвращена на доработку
+  ACCEPTED // принята — выполнено
+}
+
+enum TaskEventKind {
+  COMMENT
+  STARTED
+  SUBMITTED
+  ACCEPTED
+  RETURNED
 }
 
 model Task {
@@ -450,6 +473,8 @@ model Task {
   createdById    String?
   createdBy      User?          @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
   reminderSentAt DateTime?
+  overdueNotifiedAt DateTime?
+  completedAt    DateTime?
   assignees      TaskAssignee[]
   comments       TaskComment[]
   attachments    FileAsset[]
@@ -465,9 +490,15 @@ model TaskAssignee {
   task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedAt DateTime @default(now())
+  status      AssigneeStatus @default(ASSIGNED)
+  startedAt   DateTime?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  reviewedById String?
+  reviewedBy  User?    @relation("TaskReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@id([taskId, userId])
-  @@index([userId])
+  @@index([userId, status])
 }
 
 model TaskComment {
@@ -477,6 +508,11 @@ model TaskComment {
   authorId  String?
   author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
   body      String
+  // Лента задачи: обычный комментарий или событие (взял в работу, сдал, принял, вернул)
+  kind      TaskEventKind @default(COMMENT)
+  // Чьё выполнение касается события (для SUBMITTED/ACCEPTED/RETURNED — исполнитель)
+  subjectUserId String?
+  files     FileAsset[]   @relation("TaskCommentFiles")
   createdAt DateTime @default(now())
 
   @@index([taskId, createdAt])
@@ -521,6 +557,11 @@ enum NotificationType {
   EVENT_UPDATED
   EVENT_REMINDER
   MAIL_READY
+  MAIL_NEW
+  TASK_REVIEW
+  TASK_RESULT
+  DOCUMENT_NEW
+  DIGEST
   SURVEY_DUE
   SURVEY_ALERT
   SYSTEM
@@ -549,6 +590,8 @@ model Notification {
   title      String
   body       String
   url        String?
+  // Кнопки действий для Telegram: [[{ text, data? , url? }]] — «В работу», «Принять», «Иду»…
+  actions    Json?
   readAt     DateTime?
   createdAt  DateTime               @default(now())
   deliveries NotificationDelivery[]
@@ -612,6 +655,12 @@ model EmailAccount {
   // один раз в кабинете и затем стирается. Администратор его не видит.
   pendingSecretEnc    String?
   pendingSecretExpiresAt DateTime?
+  // Пароль ящика, которым управляет система (AES-256-GCM, APP_ENCRYPTION_KEY). Никому не показывается:
+  // по нему кабинет сам входит в почту, а воркер проверяет новые письма.
+  passwordEnc         String?
+  unreadCount         Int           @default(0)
+  lastUidNext         Int?
+  mailCheckedAt       DateTime?
   lastPasswordResetAt DateTime?
   createdById         String?
   createdBy           User?         @relation("EmailAccountCreator", fields: [createdById], references: [id], onDelete: SetNull)

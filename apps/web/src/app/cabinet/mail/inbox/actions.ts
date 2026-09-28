@@ -2,33 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { db } from "@drago/database";
-import { audit, checkCredentials, getSetting, sendAs, trashMessage } from "@drago/core";
+import { audit, sendAs, trashMessage } from "@drago/core";
 import { userAction, UserError } from "@/lib/actions";
-import { clearMailboxSession, mailboxCreds, saveMailboxSession } from "./creds";
+import { mailboxCreds, refreshUnread } from "./creds";
 
-/** Вход в почту: пароль проверяем у самого почтового сервера и кладём в зашифрованную куку. */
-export const unlockMailbox = userAction({ schema: z.object({ password: z.string().min(1, "Введите пароль ящика") }) }, async (d, { user, ip }) => {
-  const [account, mail] = await Promise.all([db.emailAccount.findUnique({ where: { userId: user.id } }), getSetting("mail")]);
-  if (!account || account.status !== "ACTIVE") throw new UserError("Ящик недоступен. Напишите командиру.");
-  const ok = await checkCredentials({
-    address: account.address,
-    password: d.password,
-    imapHost: mail.imapHost || mail.domain,
-    smtpHost: mail.smtpHost || mail.domain,
-  });
-  if (!ok) throw new UserError("Почтовый сервер не принял пароль", { password: "Неверный пароль" });
-  await saveMailboxSession(user.id, d.password);
-  await audit({ actorId: user.id, action: "mail.webmail_unlock", entity: "EmailAccount", entityId: account.id, ipAddress: ip });
-  revalidatePath("/cabinet/mail/inbox");
-  return { ok: true, message: "Почта открыта" };
-});
-
-export const lockMailbox = userAction({ schema: z.object({}) }, async () => {
-  await clearMailboxSession();
-  revalidatePath("/cabinet/mail/inbox");
-  return { ok: true, message: "Почта закрыта" };
-});
+async function creds(userId: string) {
+  const access = await mailboxCreds(userId);
+  if (!access.ok) throw new UserError(access.message);
+  return access.creds;
+}
 
 export const sendMessage = userAction(
   {
@@ -40,23 +22,21 @@ export const sendMessage = userAction(
     }),
   },
   async (d, { user, ip }) => {
-    const creds = await mailboxCreds(user.id);
-    if (!creds) throw new UserError("Сначала введите пароль от ящика");
+    const c = await creds(user.id);
     try {
-      await sendAs(creds, { to: d.to, subject: d.subject || "(без темы)", text: d.text, inReplyTo: d.inReplyTo });
+      await sendAs(c, { to: d.to, subject: d.subject || "(без темы)", text: d.text, inReplyTo: d.inReplyTo });
     } catch (err) {
       throw new UserError(`Письмо не ушло: ${(err as Error).message.slice(0, 160)}`);
     }
-    await audit({ actorId: user.id, action: "mail.webmail_send", entity: "EmailAccount", entityId: creds.address, ipAddress: ip, metadata: { to: d.to } });
+    await audit({ actorId: user.id, action: "mail.webmail_send", entity: "EmailAccount", entityId: c.address, ipAddress: ip, metadata: { to: d.to } });
     revalidatePath("/cabinet/mail/inbox");
     return { ok: true, message: "Письмо отправлено" };
   },
 );
 
 export const deleteMessage = userAction({ schema: z.object({ uid: z.coerce.number().int().positive() }) }, async (d, { user }) => {
-  const creds = await mailboxCreds(user.id);
-  if (!creds) throw new UserError("Сначала введите пароль от ящика");
-  await trashMessage(creds, d.uid);
-  revalidatePath("/cabinet/mail/inbox");
+  await trashMessage(await creds(user.id), d.uid);
+  await refreshUnread(user.id);
+  revalidatePath("/cabinet", "layout");
   return { ok: true, message: "Письмо в корзине" };
 });

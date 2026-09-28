@@ -1,25 +1,7 @@
 "use client";
 
-import { ActionForm, Field, FormMessage, Input, InlineAction, SubmitButton, Textarea } from "@/components/ui/form";
-import { lockMailbox, sendMessage, unlockMailbox } from "./actions";
-
-export function UnlockForm() {
-  return (
-    <ActionForm action={unlockMailbox} refreshOnSuccess className="grid gap-4">
-      <FormMessage />
-      <Field label="Пароль ящика" name="password" required>
-        <Input name="password" type="password" autoComplete="current-password" autoFocus />
-      </Field>
-      <div>
-        <SubmitButton>Открыть почту</SubmitButton>
-      </div>
-    </ActionForm>
-  );
-}
-
-export function LockButton() {
-  return <InlineAction action={lockMailbox} fields={{}} label="Закрыть почту" />;
-}
+import { ActionForm, Field, FormMessage, Input, SubmitButton, Textarea } from "@/components/ui/form";
+import { sendMessage } from "./actions";
 
 export function ComposeBox({ defaultTo, inReplyTo }: { defaultTo?: string; inReplyTo?: string }) {
   return (

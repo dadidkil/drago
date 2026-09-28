@@ -15,10 +15,10 @@ export default async function AdminTasks({ searchParams }: { searchParams: Promi
   const { status } = await searchParams;
   const st = status && status in TASK_STATUS_LABELS ? (status as TaskStatus) : undefined;
   const tasks = await db.task.findMany({
-    where: st ? { status: st } : { status: { in: ["NEW", "IN_PROGRESS"] } },
+    where: st ? { status: st } : { status: { in: ["NEW", "IN_PROGRESS", "REVIEW"] } },
     orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
     take: 300,
-    include: { assignees: { include: { user: { select: { profile: { select: { firstName: true, lastName: true } } } } } } },
+    include: { assignees: { include: { user: { select: { profile: { select: { firstName: true, lastName: true } } } } } }, createdBy: { select: { profile: { select: { firstName: true, lastName: true } } } } },
   });
   return (
     <>
@@ -36,13 +36,14 @@ export default async function AdminTasks({ searchParams }: { searchParams: Promi
       {tasks.length === 0 ? (
         <EmptyState title="Задач нет" />
       ) : (
-        <Table headers={["Задача", "Исполнители", "Срок", "Статус"]}>
+        <Table headers={["Задача", "Исполнители", "Срок", "Выполнение"]}>
           {tasks.map((t) => (
             <tr key={t.id}>
               <Td>
                 <Link href={`/admin/tasks/${t.id}`} className="font-semibold hover:text-fire">
                   {t.title}
                 </Link>
+                {t.createdBy?.profile && <p className="text-xs text-muted">поставил(а): {fullName(t.createdBy.profile)}</p>}
               </Td>
               <Td className="text-muted">{t.assignees.map((a) => (a.user.profile ? fullName(a.user.profile) : "—")).join(", ")}</Td>
               <Td>
@@ -50,6 +51,10 @@ export default async function AdminTasks({ searchParams }: { searchParams: Promi
               </Td>
               <Td>
                 <TaskStatusBadge status={t.status} />
+                <p className="mt-1 text-xs text-muted">
+                  принято {t.assignees.filter((a) => a.status === "ACCEPTED").length}/{t.assignees.length}
+                  {t.assignees.some((a) => a.status === "SUBMITTED") ? ` · ждут проверки: ${t.assignees.filter((a) => a.status === "SUBMITTED").length}` : ""}
+                </p>
               </Td>
             </tr>
           ))}

@@ -20,16 +20,13 @@ export function SecurityForm({ s }: { s: { requireStaff2fa: boolean; auditRetent
   );
 }
 
-export function MailSettingsForm({ s }: { s: { domain: string; webmailUrl: string; imapHost: string; smtpHost: string } }) {
+export function MailSettingsForm({ s }: { s: { domain: string; imapHost: string; smtpHost: string } }) {
   return (
     <ActionForm action={saveMailSettings} className="grid gap-4">
       <FormMessage />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Домен" name="domain">
           <Input name="domain" defaultValue={s.domain} />
-        </Field>
-        <Field label="Веб-почта" name="webmailUrl">
-          <Input name="webmailUrl" type="url" defaultValue={s.webmailUrl} />
         </Field>
         <Field label="IMAP-сервер" name="imapHost">
           <Input name="imapHost" defaultValue={s.imapHost} />

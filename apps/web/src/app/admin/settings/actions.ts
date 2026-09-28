@@ -24,7 +24,6 @@ export const saveMailSettings = userAction(
     permission: "settings.manage",
     schema: z.object({
       domain: z.string().trim().min(3).max(100).regex(/^[a-z0-9.-]+$/i),
-      webmailUrl: z.union([z.literal(""), z.url({ protocol: /^https$/ })]),
       imapHost: z.string().trim().max(100),
       smtpHost: z.string().trim().max(100),
     }),

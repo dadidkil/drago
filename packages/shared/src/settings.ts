@@ -48,7 +48,6 @@ export const settingSchemas = {
   }),
   mail: z.object({
     domain: z.string().min(3).max(100),
-    webmailUrl: url,
     imapHost: z.string().max(100),
     smtpHost: z.string().max(100),
   }),
@@ -92,9 +91,8 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: SettingValue<K> } = {
   },
   mail: {
     domain: "dragotop.ru",
-    webmailUrl: "https://webmail.dragotop.ru",
-    imapHost: "mail.dragotop.ru",
-    smtpHost: "mail.dragotop.ru",
+    imapHost: "",
+    smtpHost: "",
   },
 };
 

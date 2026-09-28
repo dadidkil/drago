@@ -2,7 +2,7 @@
 
 import { AUDIENCES } from "@drago/shared";
 import { AudienceSelect } from "@/components/admin/pickers";
-import { ActionForm, Field, FormMessage, Input, Select, SubmitButton } from "@/components/ui/form";
+import { ActionForm, Checkbox, Field, FormMessage, Input, Select, SubmitButton } from "@/components/ui/form";
 import { saveCategory, uploadDocument } from "./actions";
 
 export function UploadDocumentForm({ categories }: { categories: { id: string; name: string }[] }) {
@@ -39,6 +39,7 @@ export function UploadDocumentForm({ categories }: { categories: { id: string; n
       <Field label="Файл" name="file" required hint="PDF, DOCX, XLSX, PPTX, ODT/ODS/ODP или изображение, до 25 МБ. Тип проверяется по содержимому.">
         <Input name="file" type="file" className="py-2 text-sm" />
       </Field>
+      <Checkbox name="notify" defaultChecked label="Уведомить тех, кому документ доступен (кабинет и Telegram)" />
       <div>
         <SubmitButton pendingText="Загружаем…">Загрузить</SubmitButton>
       </div>

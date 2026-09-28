@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@drago/database";
-import { audit, notify } from "@drago/core";
+import { audit, notify, rsvpActions } from "@drago/core";
 import { formatDateTime } from "@drago/shared";
 import { userAction, UserError, zf } from "@/lib/actions";
 
@@ -66,6 +66,8 @@ export const saveEvent = userAction({ permission: "events.manage", schema }, asy
       title: `Новое мероприятие: ${d.title}`,
       body: `${formatDateTime(d.startsAt)}${d.location ? `, ${d.location}` : ""}`,
       url: `/cabinet/events/${event.id}`,
+      // Ответить «Иду / Не смогу» можно прямо из Telegram
+      actions: event.requiresConfirmation ? rsvpActions(event.id) : undefined,
     });
     redirect(`/admin/events/${event.id}?saved=1`);
   }
@@ -76,7 +78,23 @@ export const saveEvent = userAction({ permission: "events.manage", schema }, asy
   const placeChanged = (before.location ?? "") !== (d.location ?? "");
   await db.event.update({ where: { id: d.id }, data: { ...data, ...(timeChanged ? { reminderSentAt: null } : {}) } });
   if (validInvitees.length > 0) {
-    await db.eventParticipant.createMany({ data: validInvitees.map((userId) => ({ eventId: d.id!, userId })), skipDuplicates: true });
+    const already = new Set(
+      (await db.eventParticipant.findMany({ where: { eventId: d.id, userId: { in: validInvitees } }, select: { userId: true } })).map((p) => p.userId),
+    );
+    const added = validInvitees.filter((id) => !already.has(id));
+    await db.eventParticipant.createMany({ data: added.map((userId) => ({ eventId: d.id!, userId })), skipDuplicates: true });
+    // Новым приглашённым — приглашение с кнопками ответа, как при создании.
+    if (added.length > 0 && d.requiresConfirmation) {
+      await notify({
+        userIds: added,
+        excludeUserId: user.id,
+        type: "EVENT_CREATED",
+        title: `Приглашение: ${d.title}`,
+        body: `${formatDateTime(d.startsAt)}${d.location ? `, ${d.location}` : ""}`,
+        url: `/cabinet/events/${d.id}`,
+        actions: rsvpActions(d.id),
+      });
+    }
   }
   await audit({ actorId: user.id, action: "event.update", entity: "Event", entityId: d.id, ipAddress: ip, metadata: { timeChanged, placeChanged } });
 

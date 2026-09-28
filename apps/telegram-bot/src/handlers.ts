@@ -2,6 +2,8 @@ import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { db } from "@drago/database";
 import {
+  agendaCounts,
+  agendaFor,
   announcementsForLevel,
   appUrl,
   audit,
@@ -13,7 +15,6 @@ import {
   getSettings,
   markProcessed,
   notifyAudience,
-  openTasksForUser,
   rateLimit,
   setConversation,
   upcomingEventsForUser,
@@ -22,14 +23,15 @@ import {
   AUDIENCES,
   EVENT_TYPE_LABELS,
   PARTICIPATION_LABELS,
-  TASK_STATUS_LABELS,
   escapeHtml,
   formatDateTime,
   fullName,
   truncate,
 } from "@drago/shared";
 import { resolveLinkedUser, type BotContext } from "./context";
-import { BTN, mainKeyboard, rsvpKeyboard, taskKeyboard } from "./keyboards";
+import { today } from "./agenda";
+import { BTN, mainKeyboard, rsvpKeyboard } from "./keyboards";
+import { handleTaskReturnText, myTasks, registerTaskHandlers, TASK_RETURN_STATE, toReview } from "./tasks";
 
 const log = createLogger("telegram-bot");
 const html = { parse_mode: "HTML" as const, link_preview_options: { is_disabled: true } };
@@ -55,9 +57,10 @@ export function registerHandlers(bot: Bot<BotContext>) {
     const payload = ctx.match?.trim() ?? "";
     if (payload.startsWith("link_")) return linkAccount(ctx, payload.slice(5));
     const name = ctx.linked?.profile?.firstName;
+    const agenda = ctx.linked ? await agendaFor({ id: ctx.linked.id, level: ctx.linked.level, canManage: ctx.linked.can("tasks.manage") }) : [];
     await ctx.reply(
       ctx.linked
-        ? `Привет, ${escapeHtml(name ?? "боец")}! 🐉\nВыбирай раздел в меню ниже. Уведомления о задачах, мероприятиях и объявлениях будут приходить сюда.`
+        ? `Привет, ${escapeHtml(name ?? "боец")}! 🐉\n${agenda.length ? `Ждёт действия: ${escapeHtml(agendaCounts(agenda))} — жми «🔥 Мои дела».` : "Все дела сделаны 👌"}\nУведомления о задачах, мероприятиях и объявлениях приходят сюда — с кнопками, можно отвечать прямо из Telegram.`
         : "Привет! Это бот трудового отряда подростков <b>ТОП «Драго»</b> 🐉\n\nБойцы получают здесь уведомления и доступ к задачам и мероприятиям — для этого привяжите аккаунт в личном кабинете (раздел «Безопасность»).\n\nХочешь в отряд? Нажми «Вступить».",
       { ...html, reply_markup: mainKeyboard(ctx.linked) },
     );
@@ -67,8 +70,10 @@ export function registerHandlers(bot: Bot<BotContext>) {
     ctx.reply(
       [
         "<b>Команды</b>",
+        "/today — мои дела: всё, что ждёт действия",
         "/events — ближайшие мероприятия",
-        "/tasks — мои задачи",
+        "/tasks — мои задачи (взять в работу, сдать)",
+        "/review — сдачи, которые ждут моей проверки",
         "/announcements — объявления",
         "/documents — документы",
         "/profile — профиль",
@@ -89,11 +94,14 @@ export function registerHandlers(bot: Bot<BotContext>) {
   bot.command("cabinet", (ctx) => ctx.reply("Личный кабинет:", { reply_markup: new InlineKeyboard().url("Открыть кабинет", appUrl("/cabinet")) }));
   bot.hears(BTN.cabinet, (ctx) => ctx.reply("Личный кабинет:", { reply_markup: new InlineKeyboard().url("Открыть кабинет", appUrl("/cabinet")) }));
 
+  bot.command("today", today);
+  bot.hears(BTN.today, today);
   bot.command("profile", profile);
   bot.command(["events"], events);
   bot.hears(BTN.events, events);
-  bot.command("tasks", tasks);
-  bot.hears(BTN.tasks, tasks);
+  registerTaskHandlers(bot);
+  bot.hears(BTN.tasks, myTasks);
+  bot.hears(BTN.review, toReview);
   bot.command("announcements", announcements);
   bot.hears(BTN.announcements, announcements);
   bot.command("documents", documents);
@@ -133,17 +141,10 @@ export function registerHandlers(bot: Bot<BotContext>) {
       update: { status: status as "GOING", respondedAt: new Date() },
     });
     await ctx.answerCallbackQuery({ text: `Ответ: ${PARTICIPATION_LABELS[status as "GOING"]}` });
-  });
-
-  bot.callbackQuery(/^task:([a-z0-9]{10,40}):(IN_PROGRESS|DONE)$/, async (ctx) => {
-    if (!ctx.linked) return ctx.answerCallbackQuery({ text: NOT_LINKED, show_alert: true });
-    const [, taskId, status] = ctx.match as RegExpMatchArray;
-    const task = await db.task.findFirst({ where: { id: taskId, assignees: { some: { userId: ctx.linked.id } } } });
-    if (!task || task.status === "CANCELLED") return ctx.answerCallbackQuery({ text: "Задача недоступна" });
-    await db.task.update({ where: { id: task.id }, data: { status: status as "DONE" } });
-    await audit({ actorId: ctx.linked.id, action: "task.status", entity: "Task", entityId: task.id, metadata: { status, via: "telegram" } });
-    await ctx.answerCallbackQuery({ text: `Статус: ${TASK_STATUS_LABELS[status as "DONE"]}` });
-    await ctx.editMessageReplyMarkup({ reply_markup: taskKeyboard(task.id, status!) }).catch(() => undefined);
+    // Отмечаем выбранный ответ прямо в сообщении — его можно поменять той же кнопкой.
+    await ctx
+      .editMessageReplyMarkup({ reply_markup: rsvpKeyboard(event.id, status).row().url("Подробнее", appUrl(`/cabinet/events/${event.id}`)) })
+      .catch(() => undefined);
   });
 
   bot.callbackQuery(/^participants:([a-z0-9]{10,40})$/, async (ctx) => {
@@ -178,6 +179,7 @@ export function registerHandlers(bot: Bot<BotContext>) {
     if (!ctx.from) return;
     const conv = await getConversation("TELEGRAM", BigInt(ctx.from.id));
     if (conv?.state === ANNOUNCE_STATE) return announceStep(ctx, conv.data as Record<string, string | number>);
+    if (conv?.state === TASK_RETURN_STATE) return handleTaskReturnText(ctx, conv.data as { taskId: string; userId: string }, ctx.message.text);
     await ctx.reply("Не понял 🙂 Выберите раздел в меню или наберите /help.", { reply_markup: mainKeyboard(ctx.linked) });
   });
 
@@ -234,19 +236,9 @@ async function events(ctx: BotContext) {
     ]
       .filter(Boolean)
       .join("\n");
-    const kb = e.requiresConfirmation && e.status !== "CANCELLED" ? rsvpKeyboard(e.id) : new InlineKeyboard();
+    const kb = e.requiresConfirmation && e.status !== "CANCELLED" ? rsvpKeyboard(e.id, my) : new InlineKeyboard();
     kb.row().url("Подробнее", appUrl(`/cabinet/events/${e.id}`));
     await ctx.reply(text, { ...html, reply_markup: kb });
-  }
-}
-
-async function tasks(ctx: BotContext) {
-  if (!ctx.linked) return ctx.reply(NOT_LINKED);
-  const list = await openTasksForUser(ctx.linked.id, 10);
-  if (list.length === 0) return ctx.reply("Открытых задач нет 🎉");
-  for (const t of list) {
-    const text = [`<b>${escapeHtml(t.title)}</b>`, `Статус: ${TASK_STATUS_LABELS[t.status]}`, t.dueAt ? `⏰ до ${formatDateTime(t.dueAt)}` : "Без срока"].join("\n");
-    await ctx.reply(text, { ...html, reply_markup: taskKeyboard(t.id, t.status).row().url("Открыть", appUrl(`/cabinet/tasks/${t.id}`)) });
   }
 }
 

@@ -7,7 +7,6 @@ import { audit, encryptSecret, generatePassword, getMailProvisioner, mailDomain,
 import { fullName, mailboxLocalPartSchema, suggestMailbox } from "@drago/shared";
 import { userAction, UserError, zf } from "@/lib/actions";
 
-const TEMP_SECRET_TTL_MS = 72 * 3600_000;
 
 /**
  * Создание ящика name@dragotop.ru.
@@ -27,13 +26,14 @@ async function provisionMailbox(d: { userId: string; localPart: string; quotaMb?
     const displayName = target.profile ? `${target.profile.firstName} ${target.profile.lastName}` : address;
     let status: "ACTIVE" | "PENDING" | "ERROR" = provisioner.automated ? "ACTIVE" : "PENDING";
     let lastError: string | null = null;
-    let pendingSecretEnc: string | null = null;
+    let passwordEnc: string | null = null;
 
     if (provisioner.automated) {
+      // Пароль служебный: кабинет входит в почту сам, никто его не видит и не вводит.
       const password = generatePassword();
       try {
         await provisioner.createMailbox({ address, displayName, password, quotaMb: d.quotaMb });
-        pendingSecretEnc = encryptSecret(password);
+        passwordEnc = encryptSecret(password);
       } catch (err) {
         status = "ERROR";
         lastError = (err as Error).message.slice(0, 500);
@@ -47,9 +47,8 @@ async function provisionMailbox(d: { userId: string; localPart: string; quotaMb?
         status,
         quotaMb: d.quotaMb ?? null,
         lastError,
-        pendingSecretEnc,
-        pendingSecretExpiresAt: pendingSecretEnc ? new Date(Date.now() + TEMP_SECRET_TTL_MS) : null,
-        lastPasswordResetAt: pendingSecretEnc ? new Date() : null,
+        passwordEnc,
+        lastPasswordResetAt: passwordEnc ? new Date() : null,
         createdById: user.id,
       },
     });
@@ -59,7 +58,7 @@ async function provisionMailbox(d: { userId: string; localPart: string; quotaMb?
         userIds: [target.id],
         type: "MAIL_READY",
         title: "Ваш ящик @dragotop.ru готов",
-        body: `Адрес: ${address}. Временный пароль — в личном кабинете, раздел «Почта» (показывается один раз, 72 часа).`,
+        body: `Адрес: ${address}. Почта открывается прямо в кабинете, раздел «Почта» — без пароля.`,
         url: "/cabinet/mail",
       });
     }
@@ -78,7 +77,7 @@ export const createMailbox = userAction(
     return {
       ok: true,
       message: provisioner.automated
-        ? `Ящик ${address} создан. Владелец получит временный пароль в кабинете.`
+        ? `Ящик ${address} создан. Владелец откроет его в кабинете без пароля.`
         : `Адрес ${address} зарезервирован. Создайте ящик в панели провайдера и отметьте его активным.`,
     };
   },
@@ -136,12 +135,12 @@ export const transferMailbox = userAction(
     if (target.emailAccount) throw new UserError("У нового владельца уже есть ящик");
 
     const provisioner = getMailProvisioner();
-    let pendingSecretEnc: string | null = null;
+    let passwordEnc: string | null = null;
     if (provisioner.automated) {
       const password = generatePassword();
       try {
         await provisioner.setPassword(account.address, password);
-        pendingSecretEnc = encryptSecret(password);
+        passwordEnc = encryptSecret(password);
       } catch (err) {
         throw new UserError(`Почтовый сервер вернул ошибку: ${(err as Error).message.slice(0, 200)}`);
       }
@@ -150,9 +149,12 @@ export const transferMailbox = userAction(
       where: { id: account.id },
       data: {
         userId: target.id,
-        pendingSecretEnc,
-        pendingSecretExpiresAt: pendingSecretEnc ? new Date(Date.now() + TEMP_SECRET_TTL_MS) : null,
-        lastPasswordResetAt: pendingSecretEnc ? new Date() : account.lastPasswordResetAt,
+        passwordEnc,
+        pendingSecretEnc: null,
+        pendingSecretExpiresAt: null,
+        unreadCount: 0,
+        lastUidNext: null,
+        lastPasswordResetAt: passwordEnc ? new Date() : account.lastPasswordResetAt,
       },
     });
     await audit({
@@ -167,9 +169,7 @@ export const transferMailbox = userAction(
       userIds: [target.id],
       type: "MAIL_READY",
       title: `Вам передан ящик ${account.address}`,
-      body: provisioner.automated
-        ? "Временный пароль — в кабинете, раздел «Почта» (показывается один раз, 72 часа)."
-        : "Пароль вам сообщит командный состав.",
+      body: provisioner.automated ? "Почта уже открывается в кабинете, раздел «Почта»." : "Пароль вам сообщит командный состав.",
       url: "/cabinet/mail",
     });
     await notify({
@@ -180,7 +180,7 @@ export const transferMailbox = userAction(
       url: "/cabinet/mail",
     });
     revalidatePath("/admin/mail");
-    return { ok: true, message: `Ящик ${account.address} передан. Новый владелец получит временный пароль в кабинете.` };
+    return { ok: true, message: `Ящик ${account.address} передан. Новый владелец откроет его в кабинете, у прежнего доступа больше нет.` };
   },
 );
 
@@ -200,24 +200,18 @@ export const resetMailboxPassword = userAction({ permission: "mail.manage", sche
   }
   await db.emailAccount.update({
     where: { id: account.id },
-    data: {
-      status: "ACTIVE",
-      lastError: null,
-      pendingSecretEnc: encryptSecret(password),
-      pendingSecretExpiresAt: new Date(Date.now() + TEMP_SECRET_TTL_MS),
-      lastPasswordResetAt: new Date(),
-    },
+    data: { status: "ACTIVE", lastError: null, passwordEnc: encryptSecret(password), pendingSecretEnc: null, pendingSecretExpiresAt: null, lastPasswordResetAt: new Date() },
   });
   await audit({ actorId: user.id, action: "mail.password_reset", entity: "EmailAccount", entityId: account.id, ipAddress: ip, metadata: { address: account.address } });
   await notify({
     userIds: [account.userId],
     type: "MAIL_READY",
-    title: "Новый временный пароль для почты",
-    body: `Для ${account.address} выпущен новый временный пароль. Посмотрите его в кабинете, раздел «Почта».`,
+    title: "Доступ к почте обновлён",
+    body: `Ящик ${account.address} снова открывается в кабинете, раздел «Почта».`,
     url: "/cabinet/mail",
   });
   revalidatePath("/admin/mail");
-  return { ok: true, message: "Новый временный пароль отправлен владельцу в кабинет" };
+  return { ok: true, message: "Доступ перевыпущен — владелец открывает почту в кабинете" };
 });
 
 export const setMailboxStatus = userAction(
@@ -227,7 +221,7 @@ export const setMailboxStatus = userAction(
     if (!account) throw new UserError("Ящик не найден");
     const provisioner = getMailProvisioner();
     if (d.status === "DISABLED" && provisioner.automated) await provisioner.disableMailbox(account.address);
-    if (d.status === "ACTIVE" && provisioner.automated) throw new UserError("Чтобы включить ящик, выпустите новый временный пароль");
+    if (d.status === "ACTIVE" && provisioner.automated) throw new UserError("Чтобы включить ящик, нажмите «Перевыпустить доступ»");
     await db.emailAccount.update({ where: { id: account.id }, data: { status: d.status, pendingSecretEnc: null, pendingSecretExpiresAt: null } });
     await audit({ actorId: user.id, action: d.status === "DISABLED" ? "mail.disable" : "mail.activate", entity: "EmailAccount", entityId: account.id, ipAddress: ip, metadata: { address: account.address } });
     if (d.status === "ACTIVE") {

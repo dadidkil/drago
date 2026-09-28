@@ -6,13 +6,13 @@ import { listInbox, readMessage } from "@drago/core";
 import { formatDateTime } from "@drago/shared";
 import { buttonClass } from "@/components/ui/button";
 import { InlineAction } from "@/components/ui/form";
-import { Badge, Card, EmptyState, PageHeader } from "@/components/ui/misc";
+import { Card, EmptyState, PageHeader } from "@/components/ui/misc";
 import { requireUser } from "@/lib/auth/current-user";
 import { deleteMessage } from "./actions";
 import { mailboxCreds } from "./creds";
-import { ComposeBox, LockButton, UnlockForm } from "./forms";
+import { ComposeBox } from "./forms";
 
-export const metadata: Metadata = { title: "Входящие" };
+export const metadata: Metadata = { title: "Почта" };
 // Почта всегда живая: кэшировать чужие письма между запросами нельзя.
 export const dynamic = "force-dynamic";
 
@@ -32,28 +32,19 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     );
   }
 
-  const creds = await mailboxCreds(user.id);
-  if (!creds) {
+  // Вход автоматический: пароль ящика знает только система.
+  const access = await mailboxCreds(user.id, { verify: !account.passwordEnc });
+  if (!access.ok) {
     return (
       <>
-        <PageHeader title="Входящие" description={account.address} />
-        <Card className="max-w-lg">
-          <h2 className="font-semibold">Введите пароль от ящика</h2>
-          <p className="mt-2 text-sm text-muted">
-            Пароль спрашиваем один раз на восемь часов и держим только в зашифрованной куке вашего браузера — на сервере он не сохраняется.
-            Временный пароль после создания ящика лежит в разделе{" "}
-            <Link href="/cabinet/mail" className="underline">
-              «Почта»
-            </Link>
-            .
-          </p>
-          <div className="mt-5">
-            <UnlockForm />
-          </div>
-        </Card>
+        <PageHeader title="Почта" description={account.address} />
+        <EmptyState title="Почта сейчас недоступна" icon={<Mail className="size-8" />}>
+          {access.message}. Попробуйте позже или напишите командиру.
+        </EmptyState>
       </>
     );
   }
+  const creds = access.creds;
 
   let messages: Awaited<ReturnType<typeof listInbox>> = [];
   let failure: string | null = null;
@@ -63,19 +54,21 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     failure = (err as Error).message.slice(0, 200);
   }
   const opened = uid && !failure ? await readMessage(creds, Number(uid)).catch(() => null) : null;
+  // Письмо открыли — оно прочитано: счётчик в меню и воркер узнают об этом.
+  const unseen = messages.filter((m) => !m.seen && String(m.uid) !== uid).length;
+  if (!failure && unseen !== account.unreadCount) {
+    await db.emailAccount.update({ where: { id: account.id }, data: { unreadCount: unseen } }).catch(() => undefined);
+  }
 
   return (
     <>
       <PageHeader
-        title="Входящие"
+        title="Почта"
         description={account.address}
         actions={
-          <>
-            <Link href="/cabinet/mail/inbox?to=" className={buttonClass("primary", "sm")}>
-              Написать
-            </Link>
-            <LockButton />
-          </>
+          <Link href="/cabinet/mail/inbox?to=" className={buttonClass("primary", "sm")}>
+            Написать
+          </Link>
         }
       />
 
@@ -140,10 +133,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                     Ответить
                   </Link>
                   <InlineAction action={deleteMessage} fields={{ uid: String(opened.uid) }} label="В корзину" confirm="Убрать письмо в корзину?" />
-                  {opened.attachments.map((a) => (
-                    <Badge key={a.filename} tone="neutral">
-                      {a.filename} · {Math.round(a.size / 1024)} КБ
-                    </Badge>
+                  {opened.attachments.map((a, i) => (
+                    <a
+                      key={`${a.filename}-${i}`}
+                      href={`/cabinet/mail/inbox/attachment?uid=${opened.uid}&i=${i}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-paper-2 px-2.5 py-0.5 text-xs font-semibold hover:text-fire"
+                    >
+                      <Paperclip className="size-3" aria-hidden /> {a.filename} · {Math.round(a.size / 1024)} КБ
+                    </a>
                   ))}
                 </div>
               </header>
@@ -158,11 +155,6 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                 />
               ) : (
                 <pre className="mt-5 whitespace-pre-wrap break-words font-sans text-[15px] leading-relaxed">{opened.text || "(пустое письмо)"}</pre>
-              )}
-              {opened.attachments.length > 0 && (
-                <p className="mt-4 text-xs text-muted">
-                  Вложения из кабинета пока не скачиваются — откройте письмо в почтовой программе по IMAP (настройки в разделе «Почта»).
-                </p>
               )}
             </article>
           )}
