@@ -100,6 +100,10 @@ services:
       timeout: 5s
       retries: 10
     logging: *logging
+    # Потолок памяти: машина общая (2 ГБ на три проекта). Postgres 17 с дефолтным
+    # shared_buffers спокойно живёт в этих рамках, а сосед больше не сможет выдавить всех.
+    mem_limit: 384m
+    memswap_limit: 512m
 
   redis:
     image: ${REDIS_IMAGE:-mirror.gcr.io/library/redis:7-alpine}
@@ -116,6 +120,9 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     logging: *logging
+    # maxmemory уже 64mb — потолок контейнера страхует от утечки вне данных.
+    mem_limit: 128m
+    memswap_limit: 128m
 
   # Ежедневный бэкап PostgreSQL + загруженных файлов с ротацией (14 дневных, 8 недельных, 6 месячных).
   backup:
