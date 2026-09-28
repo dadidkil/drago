@@ -14,6 +14,9 @@ services:
     extra_hosts:
       # доступ к API ISPmanager (почтовые ящики) и почтовому серверу хоста
       - "host.docker.internal:host-gateway"
+      # SMTP: имя домена внутри контейнера ведём на сам хост — письмо идёт по локальному
+      # мосту, а SNI остаётся dragotop.ru, поэтому exim отдаёт валидный сертификат.
+      - "dragotop.ru:host-gateway"
 
   vk-bot:
     ports:
@@ -22,3 +25,6 @@ services:
   worker:
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      # SMTP: имя домена внутри контейнера ведём на сам хост — письмо идёт по локальному
+      # мосту, а SNI остаётся dragotop.ru, поэтому exim отдаёт валидный сертификат.
+      - "dragotop.ru:host-gateway"

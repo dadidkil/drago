@@ -72,6 +72,29 @@ IP сервера: **2.56.90.240**.
 **PTR** `2.56.90.240 → mail.dragotop.ru` — у хостера (тикет в поддержку), не в REG.RU и не в панели.
 Веб-почта ISPmanager: `https://dragotop.ru/roundcube/` — отдельная DNS-запись не нужна.
 
+### Что уже сделано на сервере (28.09.2026)
+
+Отправка писем с сайта настроена и проверена: почтовый домен `dragotop.ru` и ящик `noreply@dragotop.ru` созданы
+в ISPmanager, exim подписывает исходящие DKIM-ключом этого домена, submission (587) доступен контейнерам
+по TLS с сертификатом Let's Encrypt, `.env` заполнен (`SMTP_HOST=dragotop.ru`, `SMTP_USER=noreply@dragotop.ru`).
+Проверка из контейнера сайта проходит: TLS ок, AUTH ок, письмо принимается сервером.
+
+**Осталось только внести DNS — без этого Gmail отбивает письма** с `550-5.7.26 ... SPF did not pass, DKIM did not
+pass`. Значения ниже готовы к вставке в REG.RU как есть:
+
+| TYPE | HOST | VALUE | TTL |
+|---|---|---|---|
+| TXT | @ | `v=spf1 ip4:2.56.90.240 mx -all` | 3600 |
+| TXT | `dkim._domainkey` | `v=DKIM1; h=sha256; k=rsa; s=email; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3YAiHLCP20wV/Fpk/6qCJXWhmMqIRdxWDCFUvnr/s6MQNVE/HoovbSP0LBxB0QK8GyXPP/36zbkJW2I8gmJ/b+E7Ap+WQdi+NIAmt7QTwOUBpP+Uj9sOhJAvlwpZHmbPVDXGbaiLSO0LEQI8TiizJPmJN/CnNo2bdDfzOd0jG4p0+gByexfbI0n5YzGvo37UxTljzQbjkdbjSDsNebBOUOEn/kEOKI0OgB22J+Eq04I3a0/wgZ/lSgQ0EFAf9zCV7RjuRyXUPFCnIk3SaV5i53lW/NAp+17IMNCJqbYzMJsQ4cHz3uCLCIKZd9/ucGlZ8DmjYjTdsKSTpaJQsxrMDwIDAQAB` | 3600 |
+| TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@dragotop.ru; adkim=s; aspf=s` | 3600 |
+
+Для **получения** почты на @dragotop.ru нужны ещё три вещи (для отправки они не обязательны):
+`A mail → 2.56.90.240`, `MX @ → mail.dragotop.ru (10)` и открытый входящий порт 25 на сервере
+(`ufw allow 25/tcp` — сейчас закрыт намеренно).
+
+**PTR** `2.56.90.240 → mail.dragotop.ru` — тикет хостеру. Сейчас PTR = `academic-special-kestrel.ihchost.rocks`;
+Mail.ru и Яндекс относятся к такому отправителю строже, чем Gmail.
+
 ## 2B. Почта у managed-провайдера (запасной вариант)
 
 **Точные значения берите из админки выбранного провайдера** — ниже типовые записи для сверки.
