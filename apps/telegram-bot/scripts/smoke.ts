@@ -64,11 +64,9 @@ if (task) {
 }
 await text("/events");
 console.log("7 /events:", lastText().split("\n")[0]);
-await text("/applications");
-console.log("8 /applications (боец):", lastText());
 await text("/announce");
-console.log("9 /announce (боец):", lastText());
+console.log("8 /announce (боец):", lastText());
 await text("/profile");
-console.log("10 /profile:", lastText().replace(/\n/g, " | "));
+console.log("9 /profile:", lastText().replace(/\n/g, " | "));
 await db.$disconnect();
 process.exit(0);

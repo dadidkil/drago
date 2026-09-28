@@ -6,7 +6,6 @@ import {
   ClipboardList,
   FileText,
   Images,
-  Inbox,
   LayoutDashboard,
   ListTodo,
   Mail,
@@ -18,7 +17,6 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { db } from "@drago/database";
 import { fullName, type PermissionKey } from "@drago/shared";
 import { AppShell, type NavGroup, type NavItem } from "@/components/ui/shell";
 import { UserMenu } from "@/components/cabinet/user-menu";
@@ -29,7 +27,6 @@ export const metadata: Metadata = { title: { default: "Админ-панель",
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireAdmin();
-  const newApplications = user.can("applications.read") ? await db.joinApplication.count({ where: { status: "NEW" } }) : 0;
 
   const item = (perm: PermissionKey | null, it: NavItem): NavItem[] => (perm === null || user.can(perm) ? [it] : []);
   const groups: NavGroup[] = [
@@ -38,7 +35,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       title: "Люди",
       items: [
         ...item("users.read", { href: "/admin/users", label: "Пользователи", icon: <Users /> }),
-        ...item("applications.read", { href: "/admin/applications", label: "Заявки", icon: <Inbox />, badge: newApplications }),
       ],
     },
     {

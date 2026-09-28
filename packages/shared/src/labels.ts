@@ -22,20 +22,6 @@ export const PARTICIPATION_LABELS = {
   ATTENDED: "Присутствовал",
 } as const;
 
-export const APPLICATION_STATUS_LABELS = {
-  NEW: "Новая",
-  CONTACTED: "Связались",
-  INTERVIEW: "Собеседование",
-  ACCEPTED: "Принят",
-  DECLINED: "Отклонена",
-} as const;
-
-export const APPLICATION_SOURCE_LABELS = {
-  WEB: "Сайт",
-  VK_BOT: "VK-бот",
-  TELEGRAM_BOT: "Telegram-бот",
-} as const;
-
 export const USER_STATUS_LABELS = {
   INVITED: "Приглашён",
   ACTIVE: "Активен",

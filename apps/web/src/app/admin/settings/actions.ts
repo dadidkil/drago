@@ -10,11 +10,11 @@ import { userAction, UserError, zf } from "@/lib/actions";
 export const saveSecuritySettings = userAction(
   {
     permission: "settings.manage",
-    schema: z.object({ requireStaff2fa: zf.bool(), applicationRetentionDays: zf.int(30, 1095), auditRetentionDays: zf.int(90, 1825) }),
+    schema: z.object({ requireStaff2fa: zf.bool(), auditRetentionDays: zf.int(90, 1825) }),
   },
   async (d, { user, ip }) => {
     await setSetting("security", { requireStaff2fa: d.requireStaff2fa }, { id: user.id, ip });
-    await setSetting("privacy", { applicationRetentionDays: d.applicationRetentionDays, auditRetentionDays: d.auditRetentionDays }, { id: user.id, ip });
+    await setSetting("privacy", { auditRetentionDays: d.auditRetentionDays }, { id: user.id, ip });
     return { ok: true, message: "Сохранено" };
   },
 );

@@ -65,11 +65,9 @@ export async function cleanup(): Promise<void> {
     db.emailAccount.updateMany({ where: { pendingSecretExpiresAt: { lt: now } }, data: { pendingSecretEnc: null, pendingSecretExpiresAt: null } }),
     db.notificationDelivery.deleteMany({ where: { status: { in: ["SENT", "SKIPPED"] }, createdAt: { lt: days(30) } } }),
     db.notification.deleteMany({ where: { readAt: { not: null }, createdAt: { lt: days(180) } } }),
-    // Срок хранения заявок (минимизация ПДн несовершеннолетних).
-    db.joinApplication.deleteMany({ where: { createdAt: { lt: days(privacy.applicationRetentionDays) } } }),
     db.auditLog.deleteMany({ where: { createdAt: { lt: days(privacy.auditRetentionDays) } } }),
   ]);
-  const labels = ["sessions", "authTokens", "linkCodes", "processedUpdates", "conversations", "tempMailSecrets", "deliveries", "notifications", "applications", "audit"];
+  const labels = ["sessions", "authTokens", "linkCodes", "processedUpdates", "conversations", "tempMailSecrets", "deliveries", "notifications", "audit"];
   const summary = Object.fromEntries(results.map((r, i) => [labels[i], r.count]));
   log.info("cleanup done", summary);
 }

@@ -4,7 +4,6 @@ import {
   PERMISSION_KEYS,
   ROLE_LEVELS,
   canManageLevel,
-  joinApplicationSchema,
   mailboxLocalPartSchema,
   parseMoscowInput,
   parseSetting,
@@ -37,21 +36,6 @@ describe("rbac", () => {
 });
 
 describe("validation", () => {
-  const base = { fullName: "Иванов Иван", age: "15", contact: "+7 900 000-00-00" };
-  it("accepts a minimal application", () => {
-    expect(joinApplicationSchema.safeParse(base).success).toBe(true);
-  });
-  it("rejects ages outside 14–17", () => {
-    expect(joinApplicationSchema.safeParse({ ...base, age: "13" }).success).toBe(false);
-    expect(joinApplicationSchema.safeParse({ ...base, age: "18" }).success).toBe(false);
-  });
-  it("rejects markup in names", () => {
-    expect(joinApplicationSchema.safeParse({ ...base, fullName: "<script>alert(1)</script>" }).success).toBe(false);
-  });
-  it("validates telegram usernames", () => {
-    expect(joinApplicationSchema.safeParse({ ...base, telegram: "@drago_top" }).success).toBe(true);
-    expect(joinApplicationSchema.safeParse({ ...base, telegram: "bad name!" }).success).toBe(false);
-  });
   it("password policy", () => {
     expect(passwordSchema.safeParse("short1").success).toBe(false);
     expect(passwordSchema.safeParse("onlyletterslong").success).toBe(false);
@@ -84,6 +68,6 @@ describe("format & slug", () => {
   });
   it("falls back to defaults on invalid settings", () => {
     expect(parseSetting("security", { requireStaff2fa: "yes" }).requireStaff2fa).toBe(true);
-    expect(parseSetting("privacy", null).applicationRetentionDays).toBe(365);
+    expect(parseSetting("privacy", null).auditRetentionDays).toBe(730);
   });
 });

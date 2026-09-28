@@ -85,7 +85,7 @@ pass`. Значения ниже готовы к вставке в REG.RU как
 | TYPE | HOST | VALUE | TTL |
 |---|---|---|---|
 | TXT | @ | `v=spf1 ip4:2.56.90.240 mx -all` | 3600 |
-| TXT | `dkim._domainkey` | `v=DKIM1; h=sha256; k=rsa; s=email; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3YAiHLCP20wV/Fpk/6qCJXWhmMqIRdxWDCFUvnr/s6MQNVE/HoovbSP0LBxB0QK8GyXPP/36zbkJW2I8gmJ/b+E7Ap+WQdi+NIAmt7QTwOUBpP+Uj9sOhJAvlwpZHmbPVDXGbaiLSO0LEQI8TiizJPmJN/CnNo2bdDfzOd0jG4p0+gByexfbI0n5YzGvo37UxTljzQbjkdbjSDsNebBOUOEn/kEOKI0OgB22J+Eq04I3a0/wgZ/lSgQ0EFAf9zCV7RjuRyXUPFCnIk3SaV5i53lW/NAp+17IMNCJqbYzMJsQ4cHz3uCLCIKZd9/ucGlZ8DmjYjTdsKSTpaJQsxrMDwIDAQAB` | 3600 |
+| TXT | `dkim._domainkey` | `v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCmdCQNDX3NmkYHOGK5xurqUdbYetJmkEDJz5sSIf/M1kK5H9LvvJuEB95C9NzBQe0pO2vPLJZ7AfPQM7QQsto4qHfM2YFe7T5w42SLVCZGmjjAcfqoJXrLZiRIp74Hm99i4FK84mU9tmeNKnXehBT3WmbqPCWBA+/BfHmh/lHHfwIDAQAB` | 3600 |
 | TXT | `_dmarc` | `v=DMARC1; p=none; rua=mailto:dmarc@dragotop.ru; adkim=s; aspf=s` | 3600 |
 
 Для **получения** почты на @dragotop.ru нужны ещё три вещи (для отправки они не обязательны):
@@ -94,6 +94,18 @@ pass`. Значения ниже готовы к вставке в REG.RU как
 
 **PTR** `2.56.90.240 → mail.dragotop.ru` — тикет хостеру. Сейчас PTR = `academic-special-kestrel.ihchost.rocks`;
 Mail.ru и Яндекс относятся к такому отправителю строже, чем Gmail.
+
+**Про DKIM:** ключ перевыпущен на 1024 бита (28.09.2026) — у REG.RU поле TXT не принимает больше
+255 символов, а прежний ключ ISPmanager на 2048 бит давал 429. Значение выше влезает в одну строку,
+подпись такого ключа проверяют и Gmail, и Яндекс, и Mail.ru. Прежние файлы лежат в
+`/root/pre-hardening-backup/dkim-*`.
+
+**Про SPF:** отрицательный кеш зоны у REG.RU — 3 часа (SOA minimum 10800). Если запись добавили
+только что, крупные почтовики ещё какое-то время помнят «SPF нет» и отбивают письма — это проходит само.
+
+**Ещё одна запись, которой не хватает:** `A mail → 2.56.90.240`. PTR у хостера уже указывает на
+`mail.dragotop.ru`, но само имя никуда не резолвится — часть получателей (особенно Mail.ru) проверяет
+обратную связку PTR → A и злится, когда она не сходится.
 
 ## 2B. Почта у managed-провайдера (запасной вариант)
 

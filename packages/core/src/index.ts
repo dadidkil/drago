@@ -4,7 +4,6 @@ export * from "./audit";
 export * from "./settings";
 export * from "./permissions";
 export * from "./notifications";
-export * from "./applications";
 export * from "./link-codes";
 export * from "./dedup";
 export * from "./rate-limit";

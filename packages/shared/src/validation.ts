@@ -21,31 +21,6 @@ export const emailSchema = z
 const telegramRe = /^@?[A-Za-z0-9_]{4,32}$/;
 const vkRe = /^(https?:\/\/)?(m\.)?(vk\.(com|ru)\/)?[A-Za-z0-9_.]{2,64}$/;
 
-/** Заявка на вступление — общая для сайта, VK-бота и Telegram-бота. Только необходимые данные. */
-export const joinApplicationSchema = z.object({
-  fullName: trimmed(120)
-    .min(3, "Укажите фамилию и имя")
-    .regex(/^[A-Za-zА-Яа-яЁё\s'-]+$/, "Только буквы, пробелы и дефис"),
-  age: z.coerce
-    .number({ error: "Укажите возраст числом" })
-    .int("Укажите возраст числом")
-    .min(14, "В трудовые отряды подростков принимают с 14 лет")
-    .max(17, "ТОП объединяет ребят 14–17 лет. Если тебе 18+, загляни в студенческие отряды РСО"),
-  contact: trimmed(100).min(5, "Укажите телефон или email для связи"),
-  telegram: trimmed(33)
-    .optional()
-    .transform((v) => (v ? v : undefined))
-    .refine((v) => !v || telegramRe.test(v), "Ник Telegram: латиница, цифры и _"),
-  vk: trimmed(100)
-    .optional()
-    .transform((v) => (v ? v : undefined))
-    .refine((v) => !v || vkRe.test(v), "Ссылка или короткое имя VK"),
-  school: trimmed(150).optional().transform((v) => (v ? v : undefined)),
-  comment: trimmed(1000).optional().transform((v) => (v ? v : undefined)),
-});
-
-export type JoinApplicationInput = z.infer<typeof joinApplicationSchema>;
-
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1, "Введите пароль").max(PASSWORD_MAX),

@@ -50,7 +50,7 @@ apps/
 packages/
   database/       Prisma 7: схема, миграции, клиент, сид, CLI (приглашение суперадмина)
   shared/         изоморфный код: RBAC, валидация (zod), настройки, форматирование, slug
-  core/           серверная доменная логика: уведомления, аудит, заявки, почта,
+  core/           серверная доменная логика: уведомления, аудит, почта, почта,
                   rate limit, криптография, коды привязки, API Telegram/VK, диалог анкеты
 infrastructure/
   docker/Dockerfile          multi-stage: web, worker, telegram-bot, vk-bot, migrate

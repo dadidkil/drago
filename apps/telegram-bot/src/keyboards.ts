@@ -7,7 +7,6 @@ export const BTN = {
   announcements: "📣 Объявления",
   documents: "📄 Документы",
   cabinet: "🔗 Личный кабинет",
-  applications: "📥 Заявки",
   about: "🐉 О Драго",
   join: "✍️ Вступить",
   contacts: "☎️ Контакты",
@@ -17,7 +16,6 @@ export function mainKeyboard(user: LinkedUser | null): Keyboard {
   const kb = new Keyboard();
   if (user) {
     kb.text(BTN.events).text(BTN.tasks).row().text(BTN.announcements).text(BTN.documents).row().text(BTN.cabinet);
-    if (user.can("applications.read")) kb.text(BTN.applications);
   } else {
     kb.text(BTN.about).text(BTN.join).row().text(BTN.contacts);
   }

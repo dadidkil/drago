@@ -41,12 +41,10 @@ export const settingSchemas = {
     requireStaff2fa: z.boolean(),
   }),
   privacy: z.object({
-    applicationRetentionDays: z.number().int().min(30).max(1095),
     auditRetentionDays: z.number().int().min(90).max(1825),
   }),
   integrations: z.object({
     telegramBotUsername: z.string().max(64),
-    telegramNotifyApplications: z.boolean(),
   }),
   mail: z.object({
     domain: z.string().min(3).max(100),
@@ -87,12 +85,10 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: SettingValue<K> } = {
     requireStaff2fa: true,
   },
   privacy: {
-    applicationRetentionDays: 365,
     auditRetentionDays: 730,
   },
   integrations: {
     telegramBotUsername: "",
-    telegramNotifyApplications: true,
   },
   mail: {
     domain: "dragotop.ru",

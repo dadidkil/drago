@@ -3,8 +3,8 @@ import Link from "next/link";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { db } from "@drago/database";
 import { getSetting, isMailerConfigured } from "@drago/core";
-import { APPLICATION_STATUS_LABELS, formatDateTime, fullName } from "@drago/shared";
-import { Badge, Card, PageHeader, Stat } from "@/components/ui/misc";
+import { formatDateTime, fullName } from "@drago/shared";
+import { Card, PageHeader, Stat } from "@/components/ui/misc";
 import { requireAdmin } from "@/lib/auth/current-user";
 
 export const metadata: Metadata = { title: "Обзор" };
@@ -32,11 +32,9 @@ function Check({ ok, label, hint, href }: { ok: boolean; label: string; hint?: s
 export default async function AdminDashboard() {
   const user = await requireAdmin();
   const now = new Date();
-  const [usersByRole, newApps, appsByStatus, upcomingEvents, openTasks, overdueTasks, staffNo2fa, draftPages, draftProjects, recentAudit, security, pendingDeliveries, failedDeliveries] =
+  const [usersByRole, upcomingEvents, openTasks, overdueTasks, staffNo2fa, draftPages, draftProjects, recentAudit, security, pendingDeliveries, failedDeliveries] =
     await Promise.all([
       db.role.findMany({ orderBy: { level: "desc" }, select: { name: true, _count: { select: { users: { where: { status: "ACTIVE" } } } } } }),
-      db.joinApplication.count({ where: { status: "NEW" } }),
-      db.joinApplication.groupBy({ by: ["status"], _count: true }),
       db.event.count({ where: { startsAt: { gte: now }, status: "SCHEDULED" } }),
       db.task.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }),
       db.task.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] }, dueAt: { lt: now } } }),
@@ -57,7 +55,6 @@ export default async function AdminDashboard() {
       <PageHeader title="Обзор" eyebrow="Админ-панель" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Активных пользователей" value={totalActive} hint={usersByRole.filter((r) => r._count.users > 0).map((r) => `${r.name}: ${r._count.users}`).join(" · ")} />
-        <Stat label="Новых заявок" value={newApps} hint={<Link href="/admin/applications?status=NEW" className="text-fire">Открыть заявки →</Link>} />
         <Stat label="Предстоящих мероприятий" value={upcomingEvents} />
         <Stat label="Открытых задач" value={openTasks} hint={overdueTasks > 0 ? <span className="text-danger">просрочено: {overdueTasks}</span> : "без просрочек"} />
       </div>
@@ -106,21 +103,6 @@ export default async function AdminDashboard() {
                 проверить
               </Link>
             </li>
-          </ul>
-        </Card>
-        <Card>
-          <h2 className="font-semibold">Заявки по статусам</h2>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {appsByStatus.map((s) => (
-              <li key={s.status}>
-                <Link href={`/admin/applications?status=${s.status}`}>
-                  <Badge tone={s.status === "NEW" ? "fire" : "neutral"}>
-                    {APPLICATION_STATUS_LABELS[s.status]}: {s._count}
-                  </Badge>
-                </Link>
-              </li>
-            ))}
-            {appsByStatus.length === 0 && <li className="text-sm text-muted">Заявок пока нет</li>}
           </ul>
         </Card>
         {recentAudit.length > 0 && (

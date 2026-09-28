@@ -3,15 +3,12 @@
 import { ActionForm, Checkbox, Field, FormMessage, Input, SubmitButton } from "@/components/ui/form";
 import { saveMailSettings, saveRolePermissions, saveSecuritySettings } from "./actions";
 
-export function SecurityForm({ s }: { s: { requireStaff2fa: boolean; applicationRetentionDays: number; auditRetentionDays: number } }) {
+export function SecurityForm({ s }: { s: { requireStaff2fa: boolean; auditRetentionDays: number } }) {
   return (
     <ActionForm action={saveSecuritySettings} className="grid gap-4">
       <FormMessage />
       <Checkbox name="requireStaff2fa" defaultChecked={s.requireStaff2fa} label="Требовать 2FA для командного состава (вход в админ-панель только с 2FA)" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Хранить заявки, дней" name="applicationRetentionDays" hint="Затем удаляются автоматически">
-          <Input name="applicationRetentionDays" type="number" min={30} max={1095} defaultValue={s.applicationRetentionDays} />
-        </Field>
         <Field label="Хранить журнал аудита, дней" name="auditRetentionDays">
           <Input name="auditRetentionDays" type="number" min={90} max={1825} defaultValue={s.auditRetentionDays} />
         </Field>

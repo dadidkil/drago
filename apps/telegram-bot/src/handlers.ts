@@ -19,7 +19,6 @@ import {
   upcomingEventsForUser,
 } from "@drago/core";
 import {
-  APPLICATION_SOURCE_LABELS,
   AUDIENCES,
   EVENT_TYPE_LABELS,
   PARTICIPATION_LABELS,
@@ -77,7 +76,7 @@ export function registerHandlers(bot: Bot<BotContext>) {
         "/cabinet — личный кабинет",
         "/join — как вступить в отряд",
         "/unlink — отвязать Telegram",
-        ...(ctx.linked?.can("applications.read") ? ["", "<b>Командный состав</b>", "/applications — новые заявки"] : []),
+        ...(ctx.linked?.can("events.manage") ? ["", "<b>Командный состав</b>"] : []),
         ...(ctx.linked?.can("events.manage") ? ["/participants — участники мероприятий"] : []),
         ...(ctx.linked?.can("announcements.manage") ? ["/announce — создать объявление"] : []),
         "",
@@ -104,8 +103,6 @@ export function registerHandlers(bot: Bot<BotContext>) {
   bot.hears(BTN.about, about);
   bot.command("join", join);
   bot.hears(BTN.join, join);
-  bot.command("applications", applications);
-  bot.hears(BTN.applications, applications);
   bot.command("participants", participants);
   bot.command("announce", announce);
   bot.command("cancel", async (ctx) => {
@@ -297,15 +294,6 @@ async function join(ctx: BotContext) {
     ...html,
     reply_markup: new InlineKeyboard().url("Подать заявку", g.joinUrl).row().url("Как всё устроено", appUrl("/join")),
   });
-}
-
-async function applications(ctx: BotContext) {
-  if (!ctx.linked?.can("applications.read")) return ctx.reply("Недостаточно прав.");
-  const list = await db.joinApplication.findMany({ where: { status: "NEW" }, orderBy: { createdAt: "desc" }, take: 10 });
-  if (list.length === 0) return ctx.reply("Новых заявок нет.");
-  // Минимум ПДн в мессенджере: имя, возраст, источник. Контакты — в админ-панели.
-  const text = list.map((a) => `• <b>${escapeHtml(a.fullName)}</b>, ${a.age} лет — ${APPLICATION_SOURCE_LABELS[a.source]}, ${formatDateTime(a.createdAt)}`).join("\n");
-  await ctx.reply(`<b>Новые заявки (${list.length})</b>\n${text}`, { ...html, reply_markup: new InlineKeyboard().url("Открыть в админке", appUrl("/admin/applications?status=NEW")) });
 }
 
 async function participants(ctx: BotContext) {

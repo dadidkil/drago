@@ -9,7 +9,6 @@ export const saveIntegrations = userAction(
     permission: "integrations.manage",
     schema: z.object({
       telegramBotUsername: z.string().trim().max(64).regex(/^@?[A-Za-z0-9_]*$/, "Только латиница, цифры и _"),
-      telegramNotifyApplications: zf.bool(),
     }),
   },
   async (d, { user, ip }) => {
