@@ -2,37 +2,52 @@
  * RBAC ТОП «Драго».
  *
  * Источник истины для набора прав — этот файл (сидируется в таблицы Role/Permission/RolePermission).
- * Матрицу «роль → права» SUPERADMIN может менять в админ-панели; SUPERADMIN всегда имеет все права.
+ * Матрицу «роль → права» правит командир в админ-панели; у командира всегда все права.
+ * Отдельной технической роли «суперадминистратор» нет: полный доступ — это признак аккаунта
+ * (`User.isOwner`), чтобы владелец системы мог числиться в отряде кем угодно, хоть кандидатом.
  * Проверки выполняются на сервере (server actions / route handlers / боты), а не скрытием кнопок.
  */
 
-export const ROLE_KEYS = ["SUPERADMIN", "COMMANDER", "COMMISSAR", "STAFF", "FIGHTER", "CANDIDATE"] as const;
+export const ROLE_KEYS = ["COMMANDER", "COMMISSAR", "METHODIST", "MEDIC", "PR_LEAD", "FIGHTER", "CANDIDATE"] as const;
 export type RoleKey = (typeof ROLE_KEYS)[number];
 
 /** Уровень роли в иерархии. Управлять можно только теми, у кого уровень строго ниже. */
 export const ROLE_LEVELS: Record<RoleKey, number> = {
-  SUPERADMIN: 100,
   COMMANDER: 80,
   COMMISSAR: 60,
-  STAFF: 40,
+  // Командный состав: методист, медик и пиар-руководитель равны между собой.
+  METHODIST: 40,
+  MEDIC: 40,
+  PR_LEAD: 40,
   FIGHTER: 20,
   CANDIDATE: 10,
 };
 
+/**
+ * Уровень владельца системы (`User.isOwner`). Выше любой роли, поэтому такой аккаунт
+ * управляет всеми и видит любую аудиторию, оставаясь в отряде на своей обычной роли.
+ */
+export const OWNER_LEVEL = 1000;
+
+/** Роли командного состава — те, кому по умолчанию открыта админ-панель. */
+export const STAFF_ROLE_KEYS = ["COMMANDER", "COMMISSAR", "METHODIST", "MEDIC", "PR_LEAD"] as const satisfies readonly RoleKey[];
+
 export const ROLE_NAMES: Record<RoleKey, string> = {
-  SUPERADMIN: "Суперадминистратор",
   COMMANDER: "Командир",
   COMMISSAR: "Комиссар",
-  STAFF: "Командный состав",
+  METHODIST: "Методист",
+  MEDIC: "Медик",
+  PR_LEAD: "Пиар-руководитель",
   FIGHTER: "Боец",
   CANDIDATE: "Кандидат",
 };
 
 export const ROLE_DESCRIPTIONS: Record<RoleKey, string> = {
-  SUPERADMIN: "Полный доступ ко всей системе",
-  COMMANDER: "Управление отрядом, пользователями, мероприятиями, задачами, документами",
-  COMMISSAR: "Контент, мероприятия, объявления, внутренние активности",
-  STAFF: "Ограниченные административные возможности",
+  COMMANDER: "Командир отряда: полный доступ ко всей системе",
+  COMMISSAR: "Комиссар: контент, мероприятия, объявления, внутренние активности",
+  METHODIST: "Методист: обучение, мероприятия, задачи, документы, формы",
+  MEDIC: "Медик: состав отряда, медицинские допуски и документы",
+  PR_LEAD: "Пиар-руководитель: новости, объявления, галерея и страницы сайта",
   FIGHTER: "Боец отряда",
   CANDIDATE: "Кандидат на вступление, ограниченный кабинет",
 };
@@ -42,7 +57,7 @@ export const AUDIENCES = [
   { level: 10, label: "Все, включая кандидатов" },
   { level: 20, label: "Бойцы и командный состав" },
   { level: 40, label: "Только командный состав" },
-  { level: 60, label: "Командир и комиссар" },
+  { level: 60, label: "Командир и комиссар (КиК)" },
 ] as const;
 
 export function audienceLabel(level: number): string {
@@ -78,25 +93,7 @@ export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as PermissionKey[];
 const ALL = PERMISSION_KEYS;
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<RoleKey, readonly PermissionKey[]> = {
-  SUPERADMIN: ALL,
-  COMMANDER: [
-    "admin.access",
-    "users.read",
-    "users.manage",
-    "users.roles",
-    "users.delete",
-    "news.manage",
-    "announcements.manage",
-    "events.manage",
-    "tasks.manage",
-    "documents.manage",
-    "gallery.manage",
-    "pages.manage",
-    "surveys.manage",
-    "surveys.results",
-    "mail.manage",
-    "audit.read",
-  ],
+  COMMANDER: ALL,
   COMMISSAR: [
     "admin.access",
     "users.read",
@@ -110,7 +107,12 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleKey, readonly PermissionKey[]>
     "surveys.manage",
     "surveys.results",
   ],
-  STAFF: ["admin.access", "users.read", "announcements.manage", "events.manage", "tasks.manage"],
+  // Методист ведёт обучение и активности: мероприятия, задачи, методички, формы.
+  METHODIST: ["admin.access", "users.read", "events.manage", "tasks.manage", "documents.manage", "surveys.manage", "surveys.results"],
+  // Медик работает с составом и документами (допуски, справки), контент сайта не трогает.
+  MEDIC: ["admin.access", "users.read", "documents.manage"],
+  // Пиар отвечает за внешнюю витрину: новости, объявления, галерея, страницы.
+  PR_LEAD: ["admin.access", "users.read", "news.manage", "announcements.manage", "gallery.manage", "pages.manage"],
   FIGHTER: [],
   CANDIDATE: [],
 };
@@ -121,13 +123,13 @@ export function isRoleKey(value: string): value is RoleKey {
 
 /**
  * Может ли актор с уровнем actorLevel управлять пользователем/назначать роль уровня targetLevel.
- * SUPERADMIN может всё (в том числе назначать других SUPERADMIN), остальные — только строго ниже себя.
+ * Владелец системы (OWNER_LEVEL) может всё, включая назначение командира; остальные — только строго ниже себя.
  */
 export function canManageLevel(actorLevel: number, targetLevel: number): boolean {
-  if (actorLevel >= ROLE_LEVELS.SUPERADMIN) return true;
+  if (actorLevel >= OWNER_LEVEL) return true;
   return targetLevel < actorLevel;
 }
 
 /** Порог «командного состава» — для 2FA, доступа к админке и т. п. */
-export const STAFF_LEVEL = ROLE_LEVELS.STAFF;
+export const STAFF_LEVEL = ROLE_LEVELS.METHODIST;
 export const FIGHTER_LEVEL = ROLE_LEVELS.FIGHTER;

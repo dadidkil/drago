@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Mail } from "lucide-react";
 import { db } from "@drago/database";
 import { getSetting } from "@drago/core";
@@ -32,10 +33,17 @@ export default async function MailPage() {
                 {MAILBOX_STATUS_LABELS[account.status]}
               </Badge>
             </div>
-            {mail.webmailUrl && account.status === "ACTIVE" && (
-              <a href={mail.webmailUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("primary", "md", "mt-5")}>
-                Открыть веб-почту
-              </a>
+            {account.status === "ACTIVE" && (
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Link href="/cabinet/mail/inbox" className={buttonClass("primary", "md")}>
+                  Открыть входящие
+                </Link>
+                {mail.webmailUrl && (
+                  <a href={mail.webmailUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("secondary", "md")}>
+                    Внешняя веб-почта
+                  </a>
+                )}
+              </div>
             )}
             {hasPending && (
               <div className="mt-6 border-t border-line pt-5">

@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   await requireAdmin("settings.manage");
   const [s, roles, permissions] = await Promise.all([
     getSettings(["security", "privacy", "mail"]),
-    db.role.findMany({ where: { key: { not: "SUPERADMIN" } }, orderBy: { level: "desc" }, include: { permissions: { include: { permission: true } } } }),
+    db.role.findMany({ where: { key: { not: "COMMANDER" } }, orderBy: { level: "desc" }, include: { permissions: { include: { permission: true } } } }),
     db.permission.findMany({ orderBy: { key: "asc" } }),
   ]);
   return (

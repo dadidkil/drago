@@ -10,6 +10,7 @@ import {
   FileText,
   LayoutDashboard,
   ListTodo,
+  Inbox,
   Mail,
   Megaphone,
   Shield,
@@ -64,6 +65,7 @@ export default async function CabinetLayout({ children }: { children: ReactNode 
       title: "Аккаунт",
       items: [
         { href: "/cabinet/profile", label: "Профиль", icon: <User /> },
+        { href: "/cabinet/mail/inbox", label: "Входящие", icon: <Inbox /> },
         { href: "/cabinet/mail", label: "Почта @dragotop.ru", icon: <Mail /> },
         { href: "/cabinet/security", label: "Безопасность", icon: <Shield /> },
         { href: "/cabinet/help", label: "Помощь", icon: <CircleHelp /> },

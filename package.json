@@ -19,7 +19,7 @@
     "db:deploy": "pnpm --filter @drago/database migrate:deploy",
     "db:seed": "pnpm --filter @drago/database seed",
     "db:studio": "pnpm --filter @drago/database studio",
-    "admin:invite": "pnpm --filter @drago/database cli invite-superadmin"
+    "admin:invite": "pnpm --filter @drago/database cli invite-owner"
   },
   "devDependencies": {
     "typescript": "5.9.3"

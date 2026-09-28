@@ -8,7 +8,7 @@ import { InlineAction } from "@/components/ui/form";
 import { Badge, Card, PageHeader } from "@/components/ui/misc";
 import { requireAdmin } from "@/lib/auth/current-user";
 import { deleteMailbox, resetMailboxPassword, setMailboxStatus } from "./actions";
-import { CreateMailboxForm } from "./forms";
+import { BulkMailboxForm, CreateMailboxForm, TransferMailboxForm } from "./forms";
 
 export const metadata: Metadata = { title: "Почта" };
 
@@ -53,6 +53,21 @@ export default async function AdminMail({ searchParams }: { searchParams: Promis
           </p>
         </Card>
       </div>
+      {candidates.length > 0 && (
+        <Card className="mt-6">
+          <h2 className="mb-1 font-semibold">Сразу нескольким</h2>
+          <p className="mb-4 text-sm text-muted">Отметьте людей — адреса соберутся из их фамилий и имён, тёзкам добавится цифра.</p>
+          <BulkMailboxForm
+            domain={domain}
+            users={candidates.map((u) => ({
+              id: u.id,
+              name: u.profile ? fullName(u.profile) : u.email,
+              suggestion: u.profile ? suggestMailbox(u.profile.firstName, u.profile.lastName) : "",
+            }))}
+          />
+        </Card>
+      )}
+
       <h2 className="mt-8 mb-3 text-lg font-semibold">Ящики ({accounts.length})</h2>
       <Table headers={["Адрес", "Владелец", "Статус", "Пароль", "Действия"]}>
         {accounts.map((a) => (
@@ -81,6 +96,13 @@ export default async function AdminMail({ searchParams }: { searchParams: Promis
                   !provisioner.automated && <InlineAction action={setMailboxStatus} fields={{ id: a.id, status: "ACTIVE" }} label="Отметить активным" />
                 )}
                 <InlineAction action={deleteMailbox} fields={{ id: a.id }} label="Удалить" confirm="Удалить ящик вместе с письмами?" />
+              </div>
+              <div className="mt-2">
+                <TransferMailboxForm
+                  id={a.id}
+                  address={a.address}
+                  users={candidates.map((u) => ({ id: u.id, name: u.profile ? fullName(u.profile) : u.email }))}
+                />
               </div>
             </Td>
           </tr>

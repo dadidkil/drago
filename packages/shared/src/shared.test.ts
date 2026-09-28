@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ROLE_PERMISSIONS,
+  OWNER_LEVEL,
+  STAFF_ROLE_KEYS,
   PERMISSION_KEYS,
   ROLE_LEVELS,
   canManageLevel,
@@ -15,18 +17,24 @@ import {
 } from "./index";
 
 describe("rbac", () => {
-  it("SUPERADMIN has every permission by default", () => {
-    expect(new Set(DEFAULT_ROLE_PERMISSIONS.SUPERADMIN)).toEqual(new Set(PERMISSION_KEYS));
+  it("COMMANDER has every permission by default", () => {
+    expect(new Set(DEFAULT_ROLE_PERMISSIONS.COMMANDER)).toEqual(new Set(PERMISSION_KEYS));
+  });
+  it("staff roles are the ones with admin access", () => {
+    for (const key of STAFF_ROLE_KEYS) expect(DEFAULT_ROLE_PERMISSIONS[key]).toContain("admin.access");
+    expect(ROLE_LEVELS.METHODIST).toBe(ROLE_LEVELS.MEDIC);
+    expect(ROLE_LEVELS.PR_LEAD).toBe(ROLE_LEVELS.MEDIC);
   });
   it("fighters and candidates have no admin permissions", () => {
     expect(DEFAULT_ROLE_PERMISSIONS.FIGHTER).toHaveLength(0);
     expect(DEFAULT_ROLE_PERMISSIONS.CANDIDATE).toHaveLength(0);
   });
-  it("only strictly lower levels are manageable (except superadmin)", () => {
+  it("only strictly lower levels are manageable, owner manages everyone", () => {
     expect(canManageLevel(ROLE_LEVELS.COMMANDER, ROLE_LEVELS.COMMISSAR)).toBe(true);
     expect(canManageLevel(ROLE_LEVELS.COMMANDER, ROLE_LEVELS.COMMANDER)).toBe(false);
     expect(canManageLevel(ROLE_LEVELS.COMMISSAR, ROLE_LEVELS.COMMANDER)).toBe(false);
-    expect(canManageLevel(ROLE_LEVELS.SUPERADMIN, ROLE_LEVELS.SUPERADMIN)).toBe(true);
+    expect(canManageLevel(ROLE_LEVELS.METHODIST, ROLE_LEVELS.MEDIC)).toBe(false);
+    expect(canManageLevel(OWNER_LEVEL, ROLE_LEVELS.COMMANDER)).toBe(true);
   });
   it("any role with admin permissions also has admin.access", () => {
     for (const perms of Object.values(DEFAULT_ROLE_PERMISSIONS)) {

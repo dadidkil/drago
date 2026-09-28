@@ -35,9 +35,9 @@ export const saveMailSettings = userAction(
   },
 );
 
-/** Матрица прав. SUPERADMIN всегда имеет все права и не редактируется. */
+/** Матрица прав. Командир всегда имеет все права и не редактируется. */
 export const saveRolePermissions = userAction({ permission: "settings.manage", schema: z.object({}) }, async (_d, { user, ip, formData }) => {
-  const roles = await db.role.findMany({ where: { key: { not: "SUPERADMIN" } } });
+  const roles = await db.role.findMany({ where: { key: { not: "COMMANDER" } } });
   const permissions = await db.permission.findMany();
   const permId = new Map(permissions.map((p) => [p.key, p.id]));
   const changes: Record<string, string[]> = {};

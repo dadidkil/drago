@@ -17,7 +17,7 @@ export interface NewUserInput {
   joinedYear?: number;
 }
 
-/** Роль, которую актор вправе назначить (строго ниже своей; SUPERADMIN — любую). */
+/** Роль, которую актор вправе назначить (строго ниже своей; владелец — любую). */
 export async function assignableRole(actor: CurrentUser, roleKey: string) {
   const role = await db.role.findUnique({ where: { key: roleKey } });
   if (!role) throw new UserError("Роль не найдена", { roleKey: "Роль не найдена" });

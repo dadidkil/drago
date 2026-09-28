@@ -1,8 +1,8 @@
 /**
  * Служебные команды (запуск на сервере):
  *   pnpm admin:invite --email you@dragotop.ru [--first Имя --last Фамилия]
- *     → создаёт SUPERADMIN (или перевыпускает приглашение) и печатает одноразовую ссылку
- *       для установки пароля. Пароли по умолчанию не используются.
+ *     → заводит владельца системы (полный доступ, роль в отряде — кандидат) или
+ *       перевыпускает приглашение, печатает одноразовую ссылку для установки пароля.
  *   pnpm --filter @drago/database cli reset-link --email user@example.com
  *     → ссылка сброса пароля (на случай, если SMTP ещё не настроен).
  */
@@ -29,19 +29,21 @@ function appUrl(p: string) {
   return `${(process.env.APP_URL ?? "http://localhost:3000").replace(/\/+$/, "")}${p}`;
 }
 
-async function inviteSuperadmin() {
+async function inviteOwner() {
   const email = values.email?.trim().toLowerCase();
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Укажите --email");
-  const role = await db.role.findUniqueOrThrow({ where: { key: "SUPERADMIN" } });
+  // Роль в отряде владельцу не важна: доступ даёт признак isOwner, поэтому берём самую нижнюю.
+  const role = await db.role.findUniqueOrThrow({ where: { key: "CANDIDATE" } });
   const user = await db.user.upsert({
     where: { email },
     create: {
       email,
       roleId: role.id,
+      isOwner: true,
       status: "INVITED",
-      profile: { create: { firstName: values.first ?? "Администратор", lastName: values.last ?? "" } },
+      profile: { create: { firstName: values.first ?? "Владелец", lastName: values.last ?? "" } },
     },
-    update: { roleId: role.id },
+    update: { isOwner: true },
   });
   const t = token();
   await db.authToken.deleteMany({ where: { userId: user.id, type: "INVITE", usedAt: null } });
@@ -49,9 +51,9 @@ async function inviteSuperadmin() {
     data: { userId: user.id, type: "INVITE", tokenHash: t.hash, expiresAt: new Date(Date.now() + 72 * 3600_000) },
   });
   await db.auditLog.create({
-    data: { action: "user.invite_superadmin_cli", entity: "User", entityId: user.id, metadata: { email } },
+    data: { action: "user.invite_owner_cli", entity: "User", entityId: user.id, metadata: { email } },
   });
-  console.log(`\nСуперадминистратор: ${email}`);
+  console.log(`\nВладелец системы: ${email}`);
   console.log(`Одноразовая ссылка для установки пароля (72 часа):\n\n  ${appUrl(`/auth/invite?token=${t.raw}`)}\n`);
   console.log("После входа включите двухфакторную аутентификацию в разделе «Безопасность».");
 }
@@ -69,7 +71,7 @@ async function resetLink() {
 }
 
 const commands: Record<string, () => Promise<void>> = {
-  "invite-superadmin": inviteSuperadmin,
+  "invite-owner": inviteOwner,
   "reset-link": resetLink,
 };
 

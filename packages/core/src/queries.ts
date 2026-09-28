@@ -1,4 +1,5 @@
 import { db } from "@drago/database";
+import { effectiveLevel } from "./permissions";
 
 /** Общие запросы «что видит пользователь» — используются кабинетом и ботами. */
 
@@ -73,11 +74,12 @@ export async function userWithLevel(userId: string) {
       id: true,
       email: true,
       status: true,
-      role: { select: { key: true, name: true, level: true } },
+      isOwner: true,
+      role: { select: { id: true, key: true, name: true, level: true } },
       profile: { select: { firstName: true, lastName: true, position: true, squadStatus: true, joinedYear: true } },
       emailAccount: { select: { address: true, status: true } },
     },
   });
   if (!user || user.status !== "ACTIVE") return null;
-  return { ...user, level: user.role.level };
+  return { ...user, level: effectiveLevel(user.role.level, user.isOwner) };
 }

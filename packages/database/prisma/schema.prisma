@@ -29,6 +29,9 @@ model User {
   status            UserStatus @default(INVITED)
   roleId            String
   role              Role       @relation(fields: [roleId], references: [id])
+  // Владелец системы: полный доступ независимо от роли в отряде (у владельца она может быть любой,
+  // вплоть до кандидата). Отдельной роли «суперадминистратор» в иерархии нет.
+  isOwner           Boolean    @default(false)
 
   // TOTP 2FA: секрет хранится зашифрованным (AES-256-GCM, APP_ENCRYPTION_KEY)
   totpSecretEnc     String?
@@ -93,7 +96,7 @@ model Profile {
 
 model Role {
   id          String           @id @default(cuid())
-  key         String           @unique // SUPERADMIN, COMMANDER, COMMISSAR, STAFF, FIGHTER, CANDIDATE
+  key         String           @unique // COMMANDER, COMMISSAR, METHODIST, MEDIC, PR_LEAD, FIGHTER, CANDIDATE
   name        String
   description String?
   // Уровень в иерархии: управлять можно только пользователями с меньшим уровнем.

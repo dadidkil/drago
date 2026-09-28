@@ -26,7 +26,7 @@ const resetPermissions = process.argv.includes("--reset-permissions");
 
 async function seedRbac() {
   // Права, которых ещё нет в базе (появились в новой версии), — выдаём существующим ролям по умолчанию.
-  // Ручные правки матрицы не затрагиваются: SUPERADMIN не мог настроить право, которого не существовало.
+  // Ручные правки матрицы не затрагиваются: командир не мог настроить право, которого не существовало.
   const existingKeys = new Set((await db.permission.findMany({ select: { key: true } })).map((p) => p.key));
   const addedKeys = existingKeys.size > 0 ? PERMISSION_KEYS.filter((k) => !existingKeys.has(k)) : [];
   for (const key of PERMISSION_KEYS) {
@@ -47,7 +47,7 @@ async function seedRbac() {
       include: { permissions: true },
     });
     // Матрицу прав заполняем только для новой роли (или по флагу --reset-permissions),
-    // чтобы не затирать изменения, сделанные SUPERADMIN в админке.
+    // чтобы не затирать изменения, сделанные командиром в админке.
     if (role.permissions.length === 0 || resetPermissions) {
       await db.rolePermission.deleteMany({ where: { roleId: role.id } });
       await db.rolePermission.createMany({

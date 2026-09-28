@@ -1,7 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { getRolePermissions, getSetting } from "@drago/core";
+import { effectiveLevel, getSetting, getUserPermissions } from "@drago/core";
 import { STAFF_LEVEL, type PermissionKey } from "@drago/shared";
 import { getSession, type CurrentSession } from "./session";
 
@@ -11,6 +11,8 @@ export interface CurrentUser {
   session: CurrentSession;
   role: { id: string; key: string; name: string; level: number };
   level: number;
+  /** Полный доступ независимо от роли (владелец системы). */
+  isOwner: boolean;
   permissions: Set<PermissionKey>;
   profile: CurrentSession["user"]["profile"];
   has2fa: boolean;
@@ -26,13 +28,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (user.status !== "ACTIVE") return null;
   const has2fa = Boolean(user.totpEnabledAt);
   if (has2fa && !session.twoFactorVerified) return null;
-  const permissions = await getRolePermissions(user.roleId);
+  const permissions = await getUserPermissions({ roleId: user.roleId, isOwner: user.isOwner });
   return {
     id: user.id,
     email: user.email,
     session,
     role: user.role,
-    level: user.role.level,
+    // Уровень владельца выше любой роли: он управляет всеми, оставаясь, например, кандидатом.
+    level: effectiveLevel(user.role.level, user.isOwner),
+    isOwner: user.isOwner,
     permissions,
     profile: user.profile,
     has2fa,

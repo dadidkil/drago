@@ -10,6 +10,7 @@ export * from "./rate-limit";
 export * from "./queries";
 export * from "./mailer";
 export * from "./mail/provisioner";
+export * from "./mail/imap";
 export * from "./env";
 export * from "./telegram-api";
 export * from "./vk-api";

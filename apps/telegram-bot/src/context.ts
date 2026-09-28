@@ -1,5 +1,5 @@
 import type { Context } from "grammy";
-import { getRolePermissions, userWithLevel } from "@drago/core";
+import { getUserPermissions, userWithLevel } from "@drago/core";
 import { db } from "@drago/database";
 import type { PermissionKey } from "@drago/shared";
 
@@ -21,7 +21,6 @@ export async function resolveLinkedUser(telegramUserId: number): Promise<LinkedU
   }
   const user = await userWithLevel(account.userId);
   if (!user) return null;
-  const role = await db.role.findUnique({ where: { key: user.role.key }, select: { id: true } });
-  const permissions = role ? await getRolePermissions(role.id) : new Set<PermissionKey>();
+  const permissions = await getUserPermissions({ roleId: user.role.id, isOwner: user.isOwner });
   return { ...user, permissions, can: (p) => permissions.has(p) };
 }
